@@ -1,0 +1,35 @@
+[
+  {
+    "id": "review-1",
+    "productId": "1",
+    "userId": "user-1",
+    "rating": 5,
+    "title": "Sản phẩm tuyệt vời",
+    "content": "Điện thoại chất lượng cao, giao hàng nhanh, đóng gói cẩn thận",
+    "images": [],
+    "helpful": 234,
+    "createdAt": "2024-10-06"
+  },
+  {
+    "id": "review-2",
+    "productId": "1",
+    "userId": "user-2",
+    "rating": 4,
+    "title": "Tốt nhưng hơi đắt",
+    "content": "Chất lượng tốt, camera rất sắc nét, pin kéo dài cả ngày",
+    "images": [],
+    "helpful": 156,
+    "createdAt": "2024-10-07"
+  },
+  {
+    "id": "review-3",
+    "productId": "2",
+    "userId": "user-3",
+    "rating": 5,
+    "title": "iPhone tuyệt vời",
+    "content": "Máy chính hãng, hoạt động mượt mà, màn hình đẹp",
+    "images": [],
+    "helpful": 345,
+    "createdAt": "2024-10-08"
+  }
+]

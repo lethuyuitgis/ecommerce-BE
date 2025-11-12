@@ -1,0 +1,39 @@
+[
+  {
+    "id": "ssssssss-1111-1111-1111-111111111111",
+    "code": "ghn",
+    "name": "Giao Hàng Nhanh",
+    "description": "Giao hàng nhanh trong 24-48 giờ",
+    "isActive": true,
+    "minDeliveryDays": 1,
+    "maxDeliveryDays": 2
+  },
+  {
+    "id": "ssssssss-2222-2222-2222-222222222222",
+    "code": "shopee_express",
+    "name": "Shopee Express",
+    "description": "Giao hàng nhanh của Shopee",
+    "isActive": true,
+    "minDeliveryDays": 1,
+    "maxDeliveryDays": 3
+  },
+  {
+    "id": "ssssssss-3333-3333-3333-333333333333",
+    "code": "ahamove",
+    "name": "Ahamove",
+    "description": "Giao hàng siêu tốc trong ngày",
+    "isActive": true,
+    "minDeliveryDays": 0,
+    "maxDeliveryDays": 1
+  },
+  {
+    "id": "ssssssss-4444-4444-4444-444444444444",
+    "code": "jnt",
+    "name": "J&T Express",
+    "description": "Giao hàng tiết kiệm",
+    "isActive": true,
+    "minDeliveryDays": 2,
+    "maxDeliveryDays": 5
+  }
+]
+

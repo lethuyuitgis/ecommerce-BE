@@ -1,0 +1,48 @@
+[
+  {
+    "id": "order-1",
+    "userId": "user-1",
+    "sellerId": "seller-1",
+    "items": [
+      {
+        "productId": "1",
+        "name": "Điện Thoại Samsung Galaxy S24 Ultra 256GB",
+        "price": 29990000,
+        "quantity": 1,
+        "image": "/samsung-galaxy-s24-ultra.png"
+      }
+    ],
+    "totalPrice": 29990000,
+    "shippingFee": 0,
+    "discount": 0,
+    "finalPrice": 29990000,
+    "status": "delivered",
+    "paymentMethod": "credit_card",
+    "shippingAddress": "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
+    "createdAt": "2024-10-01",
+    "deliveredAt": "2024-10-05"
+  },
+  {
+    "id": "order-2",
+    "userId": "user-2",
+    "sellerId": "seller-2",
+    "items": [
+      {
+        "productId": "9",
+        "name": "Quần Jean Nam Slim Fit Xanh Đậm",
+        "price": 299000,
+        "quantity": 2,
+        "image": "/blue-jeans-slim-fit.jpg"
+      }
+    ],
+    "totalPrice": 598000,
+    "shippingFee": 0,
+    "discount": 0,
+    "finalPrice": 598000,
+    "status": "processing",
+    "paymentMethod": "momo",
+    "shippingAddress": "456 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh",
+    "createdAt": "2024-10-15",
+    "deliveredAt": null
+  }
+]

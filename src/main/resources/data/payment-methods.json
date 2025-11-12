@@ -1,0 +1,31 @@
+[
+  {
+    "id": "mmmmmmmm-1111-1111-1111-111111111111",
+    "methodCode": "cod",
+    "methodName": "Thanh toán khi nhận hàng",
+    "description": "Thanh toán bằng tiền mặt khi nhận hàng",
+    "isActive": true
+  },
+  {
+    "id": "mmmmmmmm-2222-2222-2222-222222222222",
+    "methodCode": "transfer",
+    "methodName": "Chuyển khoản ngân hàng",
+    "description": "Chuyển khoản qua tài khoản ngân hàng",
+    "isActive": true
+  },
+  {
+    "id": "mmmmmmmm-3333-3333-3333-333333333333",
+    "methodCode": "momo",
+    "methodName": "Ví MoMo",
+    "description": "Thanh toán qua ví điện tử MoMo",
+    "isActive": true
+  },
+  {
+    "id": "mmmmmmmm-4444-4444-4444-444444444444",
+    "methodCode": "zalopay",
+    "methodName": "ZaloPay",
+    "description": "Thanh toán qua ví điện tử ZaloPay",
+    "isActive": true
+  }
+]
+
