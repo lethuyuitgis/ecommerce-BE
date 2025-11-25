@@ -9,22 +9,20 @@ import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.OrderItemRepository;
 import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.service.ProductService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -302,6 +300,13 @@ public class ProductServiceImpl implements ProductService {
     private String convertImageUrlToProxy(String imageUrl) {
         if (imageUrl == null || imageUrl.isEmpty()) {
             return null;
+        }
+        
+        // If it's an absolute URL that is not from MinIO, return as-is
+        if ((imageUrl.startsWith("http://") || imageUrl.startsWith("https://"))
+                && !imageUrl.contains("localhost:9000")
+                && !imageUrl.contains("minio")) {
+            return imageUrl;
         }
         
         // If already a proxy URL, return as is
