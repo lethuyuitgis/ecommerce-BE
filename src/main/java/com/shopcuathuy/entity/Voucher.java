@@ -38,6 +38,9 @@ public class Voucher extends BaseEntity {
     @Column(name = "discount_value", precision = 15, scale = 2, nullable = false)
     private BigDecimal discountValue;
     
+    @Column(name = "max_discount", precision = 15, scale = 2)
+    private BigDecimal maxDiscount;
+    
     @Column(name = "min_purchase_amount", precision = 15, scale = 2)
     private BigDecimal minPurchaseAmount;
     

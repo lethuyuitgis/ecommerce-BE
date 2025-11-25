@@ -1,69 +1,92 @@
 package com.shopcuathuy.controller;
 
-import com.shopcuathuy.dto.ApiResponse;
-import com.shopcuathuy.dto.CartItemDTO;
+import com.shopcuathuy.api.ApiResponse;
+import com.shopcuathuy.dto.request.AddToCartRequestDTO;
+import com.shopcuathuy.dto.request.UpdateCartItemRequestDTO;
+import com.shopcuathuy.dto.response.CartItemResponseDTO;
 import com.shopcuathuy.service.CartService;
-import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
-import com.shopcuathuy.dto.ApiResponse;
-import com.shopcuathuy.dto.ProductDTO;
-import com.shopcuathuy.service.WishlistService;
-import java.util.List;
-import java.util.Map;
-
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/cart")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CartController {
-    
+
     private final CartService cartService;
-    
+
+    @Autowired
+    public CartController(CartService cartService) {
+        this.cartService = cartService;
+    }
+
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CartItemDTO>>> getCartItems(@RequestHeader("X-User-Id") String userId) {
-        List<CartItemDTO> items = cartService.getCartItems(userId);
-        return ResponseEntity.ok(ApiResponse.success(items));
-    }
-    
-    @PostMapping("/add")
-    public ResponseEntity<ApiResponse<CartItemDTO>> addToCart(
-            @RequestHeader("X-User-Id") String userId,
-            @RequestBody Map<String, Object> request) {
-        String productId = (String) request.get("productId");
-        String variantId = (String) request.get("variantId");
-        Integer quantity = ((Number) request.getOrDefault("quantity", 1)).intValue();
+    public ResponseEntity<ApiResponse<List<CartItemResponseDTO>>> getCart(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
         
-        CartItemDTO item = cartService.addToCart(userId, productId, variantId, quantity);
-        return ResponseEntity.ok(ApiResponse.success("Item added to cart", item));
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success(List.of()));
+        }
+        
+        List<CartItemResponseDTO> cartItems = cartService.getCart(userId);
+        return ResponseEntity.ok(ApiResponse.success(cartItems));
     }
-    
-    @PutMapping("/{cartItemId}")
-    public ResponseEntity<ApiResponse<CartItemDTO>> updateCartItem(
-            @RequestHeader("X-User-Id") String userId,
-            @PathVariable String cartItemId,
-            @RequestBody Map<String, Integer> request) {
-        Integer quantity = request.get("quantity");
-        CartItemDTO item = cartService.updateCartItem(userId, cartItemId, quantity);
-        return ResponseEntity.ok(ApiResponse.success("Cart item updated", item));
+
+    @PostMapping("/add")
+    public ResponseEntity<ApiResponse<CartItemResponseDTO>> addToCart(
+            @RequestBody AddToCartRequestDTO request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        CartItemResponseDTO cartItem = cartService.addToCart(userId, request);
+        return ResponseEntity.ok(ApiResponse.success(cartItem));
     }
-    
-    @DeleteMapping("/{cartItemId}")
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<CartItemResponseDTO>> updateCartItem(
+            @PathVariable String id,
+            @RequestBody UpdateCartItemRequestDTO request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        CartItemResponseDTO cartItem = cartService.updateCartItem(userId, id, request);
+        return ResponseEntity.ok(ApiResponse.success(cartItem));
+    }
+
+    @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> removeFromCart(
-            @RequestHeader("X-User-Id") String userId,
-            @PathVariable String cartItemId) {
-        cartService.removeFromCart(userId, cartItemId);
-        return ResponseEntity.ok(ApiResponse.success("Item removed from cart", null));
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        cartService.removeFromCart(userId, id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
-    
-    @DeleteMapping
-    public ResponseEntity<ApiResponse<Void>> clearCart(@RequestHeader("X-User-Id") String userId) {
+
+    @DeleteMapping("/clear")
+    public ResponseEntity<ApiResponse<Void>> clearCart(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
         cartService.clearCart(userId);
-        return ResponseEntity.ok(ApiResponse.success("Cart cleared", null));
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
-

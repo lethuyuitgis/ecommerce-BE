@@ -43,6 +43,18 @@ public class Shipment extends BaseEntity {
     
     @Column(name = "sender_phone", length = 20)
     private String senderPhone;
+
+    @Column(name = "sender_address", columnDefinition = "TEXT")
+    private String senderAddress;
+
+    @Column(name = "sender_province", length = 100)
+    private String senderProvince;
+
+    @Column(name = "sender_district", length = 100)
+    private String senderDistrict;
+
+    @Column(name = "sender_ward", length = 100)
+    private String senderWard;
     
     @Column(name = "recipient_name", length = 100)
     private String recipientName;
@@ -64,12 +76,18 @@ public class Shipment extends BaseEntity {
     
     @Column(precision = 10, scale = 3)
     private BigDecimal weight; // in kg
+
+    @Column(name = "package_size", length = 50)
+    private String packageSize;
     
     @Column(name = "shipping_fee", precision = 15, scale = 2)
     private BigDecimal shippingFee;
     
     @Column(name = "insurance_fee", precision = 15, scale = 2)
     private BigDecimal insuranceFee;
+
+    @Column(name = "cod_amount", precision = 15, scale = 2)
+    private BigDecimal codAmount;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -80,12 +98,15 @@ public class Shipment extends BaseEntity {
     
     @Column(name = "actual_delivery_date")
     private LocalDate actualDeliveryDate;
+
+    @Column(columnDefinition = "TEXT")
+    private String notes;
     
     @OneToMany(mappedBy = "shipment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TrackingUpdate> trackingUpdates = new ArrayList<>();
     
     public enum ShipmentStatus {
-        PENDING, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, RETURNED
+        PENDING, READY_FOR_PICKUP, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, RETURNED
     }
 }
 

@@ -10,8 +10,21 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ConversationRepository extends JpaRepository<Conversation, String> {
 
-    @Query("SELECT c FROM Conversation c WHERE c.seller.user.id = :sellerUserId ORDER BY c.lastMessageAt DESC NULLS LAST")
+    @Query("SELECT DISTINCT c FROM Conversation c " +
+           "LEFT JOIN FETCH c.seller s " +
+           "LEFT JOIN FETCH s.user " +
+           "LEFT JOIN FETCH c.customer " +
+           "WHERE s.user.id = :sellerUserId " +
+           "ORDER BY c.lastMessageAt DESC NULLS LAST")
     List<Conversation> findBySellerUserIdOrdered(String sellerUserId);
+
+    @Query("SELECT DISTINCT c FROM Conversation c " +
+           "LEFT JOIN FETCH c.seller s " +
+           "LEFT JOIN FETCH s.user " +
+           "LEFT JOIN FETCH c.customer " +
+           "WHERE c.seller.id = :sellerId " +
+           "ORDER BY c.lastMessageAt DESC NULLS LAST")
+    List<Conversation> findBySellerIdOrdered(String sellerId);
 
     Optional<Conversation> findBySellerIdAndCustomerId(String sellerId, String customerId);
 }
