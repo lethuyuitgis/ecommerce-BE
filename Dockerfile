@@ -5,11 +5,14 @@ WORKDIR /app
 
 # Copy pom.xml and download dependencies
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B || echo "Warning: Some dependencies may not be cached"
 
 # Copy source code and build
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+# Build with verbose logging to see errors
+# Split into compile and package to see where it fails
+RUN mvn clean compile -B -e || (echo "=== Compilation failed ===" && exit 1)
+RUN mvn package -DskipTests -B -e || (echo "=== Packaging failed ===" && exit 1)
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
