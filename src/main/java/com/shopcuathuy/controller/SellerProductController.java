@@ -6,6 +6,8 @@ import com.shopcuathuy.dto.request.CreateProductRequestDTO;
 import com.shopcuathuy.dto.request.SellerUpdateProductRequestDTO;
 import com.shopcuathuy.dto.request.UpdateFeaturedRequestDTO;
 import com.shopcuathuy.dto.request.UpdateFlashSaleRequestDTO;
+import com.shopcuathuy.dto.response.ExportedFileDTO;
+import com.shopcuathuy.dto.response.ImportProductResultDTO;
 import com.shopcuathuy.dto.response.ProductPageResponseDTO;
 import com.shopcuathuy.dto.response.ProductResponseDTO;
 import com.shopcuathuy.entity.Category;
@@ -17,20 +19,25 @@ import com.shopcuathuy.repository.CategoryRepository;
 import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.repository.SellerRepository;
 import com.shopcuathuy.service.ProductService;
+import com.shopcuathuy.service.SellerProductImportService;
 import com.shopcuathuy.service.impl.ProductServiceImpl;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 
 @RestController
@@ -42,6 +49,7 @@ public class SellerProductController {
     private final CategoryRepository categoryRepository;
     private final ProductService productService;
     private final ProductServiceImpl productServiceImpl;
+    private final SellerProductImportService sellerProductImportService;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -50,12 +58,14 @@ public class SellerProductController {
                                   CategoryRepository categoryRepository,
                                   ProductService productService,
                                   ProductServiceImpl productServiceImpl,
+                                  SellerProductImportService sellerProductImportService,
                                   ObjectMapper objectMapper) {
         this.productRepository = productRepository;
         this.sellerRepository = sellerRepository;
         this.categoryRepository = categoryRepository;
         this.productService = productService;
         this.productServiceImpl = productServiceImpl;
+        this.sellerProductImportService = sellerProductImportService;
         this.objectMapper = objectMapper;
     }
 
@@ -140,6 +150,48 @@ public class SellerProductController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(productServiceImpl.convertToDTO(product)));
+    }
+
+    @PostMapping("/import")
+    @Transactional
+    public ResponseEntity<ApiResponse<ImportProductResultDTO>> importProducts(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("File import không hợp lệ"));
+        }
+
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Seller not found"));
+
+        ImportProductResultDTO result = sellerProductImportService.importProducts(seller, file);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<Resource> exportProducts(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401).build();
+        }
+
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Seller not found"));
+
+        ExportedFileDTO exportedFile = sellerProductImportService.exportProducts(seller);
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportedFile.getFilename() + "\"")
+            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .body(exportedFile.getResource());
     }
 
     @PostMapping
