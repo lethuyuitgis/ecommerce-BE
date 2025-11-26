@@ -11,5 +11,7 @@ public interface ShipmentRepository extends JpaRepository<Shipment, String> {
     Optional<Shipment> findByTrackingNumber(String trackingNumber);
     Optional<Shipment> findByOrderId(String orderId);
     List<Shipment> findByStatus(Shipment.ShipmentStatus status);
+    List<Shipment> findByShippingPartnerId(String shippingPartnerId);
+    List<Shipment> findByShippingPartnerIdAndStatus(String shippingPartnerId, Shipment.ShipmentStatus status);
 }
 

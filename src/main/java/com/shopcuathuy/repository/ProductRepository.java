@@ -5,10 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, String> {
@@ -32,6 +30,10 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     
     @Query("SELECT p FROM Product p WHERE p.category.slug = :slug AND p.status = :status")
     Page<Product> findByCategorySlug(@Param("slug") String slug, @Param("status") Product.ProductStatus status, Pageable pageable);
+    
+    // Query with images for fallback method
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category LEFT JOIN FETCH p.seller LEFT JOIN FETCH p.images WHERE p.status = :status")
+    List<Product> findByStatusWithImages(@Param("status") Product.ProductStatus status);
     
     long countBySellerId(String sellerId);
     long countBySellerIdAndStatus(String sellerId, Product.ProductStatus status);

@@ -4,12 +4,9 @@ import com.shopcuathuy.security.JwtAuthenticationFilter;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,7 +35,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Allow health checks
-                .requestMatchers("/api/auth/**", "/api/products/**", "/api/categories/**", "/api/public/**", "/api/home/**", "/api/promotions/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/products/**", "/api/categories/**", "/api/public/**", "/api/home/**", "/api/promotions/**", "/api/cart/**").permitAll()
                 .requestMatchers("/api/upload/image/**").permitAll() // Allow public access to image proxy
                 // Allow authenticated users to create seller profile (before they have SELLER role)
                 .requestMatchers("/api/seller/create").authenticated()
@@ -46,6 +43,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/seller/profile").authenticated()
                 .requestMatchers("/api/upload/**").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Shipper endpoints
+                .requestMatchers("/api/shipments/my-shipments", "/api/shipments/{id}/status").hasAnyRole("SHIPPER", "ADMIN")
                 // All other seller endpoints require SELLER or ADMIN role
                 .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "ADMIN")
                 .anyRequest().authenticated()

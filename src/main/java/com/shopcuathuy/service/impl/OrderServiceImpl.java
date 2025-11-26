@@ -17,6 +17,7 @@ import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.repository.SellerRepository;
 import com.shopcuathuy.repository.UserRepository;
 import com.shopcuathuy.service.OrderService;
+import com.shopcuathuy.service.OrderDispatchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -36,17 +37,20 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final SellerRepository sellerRepository;
+    private final OrderDispatchService orderDispatchService;
     private static int orderNumberCounter = 1000;
 
     @Autowired
     public OrderServiceImpl(OrderRepository orderRepository,
                            ProductRepository productRepository,
                            UserRepository userRepository,
-                           SellerRepository sellerRepository) {
+                           SellerRepository sellerRepository,
+                           OrderDispatchService orderDispatchService) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.sellerRepository = sellerRepository;
+        this.orderDispatchService = orderDispatchService;
     }
 
     @Override
@@ -200,6 +204,17 @@ public class OrderServiceImpl implements OrderService {
             .add(order.getTax()));
 
         order = orderRepository.save(order);
+        
+        // Tự động điều phối đơn hàng cho shipper sau khi tạo đơn thành công
+        try {
+            orderDispatchService.dispatchOrder(order.getId());
+        } catch (Exception e) {
+            // Log error nhưng không throw để không làm gián đoạn quá trình tạo đơn
+            // Đơn hàng vẫn được tạo thành công, chỉ là chưa được điều phối
+            org.slf4j.LoggerFactory.getLogger(OrderServiceImpl.class)
+                .error("Failed to dispatch order {}: {}", order.getId(), e.getMessage());
+        }
+        
         return convertToDTO(order);
     }
 

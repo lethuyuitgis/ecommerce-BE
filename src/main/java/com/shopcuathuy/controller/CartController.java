@@ -39,9 +39,12 @@ public class CartController {
             @RequestBody AddToCartRequestDTO request,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         
+        // Allow guest users to add to cart (will be stored in localStorage on frontend)
+        // When user logs in, frontend will sync cart to server
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.status(401)
-                .body(ApiResponse.error("User not authenticated"));
+            // Return success but indicate it's a guest cart
+            // Frontend will handle storing in localStorage
+            return ResponseEntity.ok(ApiResponse.success(null, "Item added to guest cart. Please login to save permanently."));
         }
 
         CartItemResponseDTO cartItem = cartService.addToCart(userId, request);
@@ -54,9 +57,9 @@ public class CartController {
             @RequestBody UpdateCartItemRequestDTO request,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         
+        // Allow guest users to update cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.status(401)
-                .body(ApiResponse.error("User not authenticated"));
+            return ResponseEntity.ok(ApiResponse.success(null, "Cart updated in guest mode. Please login to save permanently."));
         }
 
         CartItemResponseDTO cartItem = cartService.updateCartItem(userId, id, request);
@@ -68,9 +71,9 @@ public class CartController {
             @PathVariable String id,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         
+        // Allow guest users to remove from cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.status(401)
-                .body(ApiResponse.error("User not authenticated"));
+            return ResponseEntity.ok(ApiResponse.success(null, "Item removed from guest cart."));
         }
 
         cartService.removeFromCart(userId, id);
@@ -81,9 +84,9 @@ public class CartController {
     public ResponseEntity<ApiResponse<Void>> clearCart(
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         
+        // Allow guest users to clear cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.status(401)
-                .body(ApiResponse.error("User not authenticated"));
+            return ResponseEntity.ok(ApiResponse.success(null, "Guest cart cleared."));
         }
 
         cartService.clearCart(userId);

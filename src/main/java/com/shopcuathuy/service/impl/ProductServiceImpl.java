@@ -1,6 +1,5 @@
 package com.shopcuathuy.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopcuathuy.dto.request.UpdateProductRequestDTO;
 import com.shopcuathuy.dto.response.ProductPageResponseDTO;
 import com.shopcuathuy.dto.response.ProductResponseDTO;
@@ -22,7 +21,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -139,17 +137,17 @@ public class ProductServiceImpl implements ProductService {
             log.warn("JPQL parameter query failed: {}", e.getMessage());
         }
         
-        // Method 4: Fallback - fetch all active products and filter in memory
+        // Method 4: Fallback - fetch all active products with images and filter in memory
         // This is less efficient but will work if Boolean mapping is the issue
-        log.warn("All queries returned empty. Trying fallback: fetch all active and filter in memory...");
+        log.warn("All queries returned empty. Trying fallback: fetch all active with images and filter in memory...");
         try {
-            Pageable largePageable = PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "createdAt"));
-            Page<Product> allActiveProducts = productRepository.findByStatus(Product.ProductStatus.ACTIVE, largePageable);
+            // Use query that fetches images
+            List<Product> allActiveProducts = productRepository.findByStatusWithImages(Product.ProductStatus.ACTIVE);
             
-            log.info("Found {} active products total. Checking isFeatured values...", allActiveProducts.getTotalElements());
+            log.info("Found {} active products total. Checking isFeatured values...", allActiveProducts.size());
             
             // Filter featured products in memory
-            List<Product> featuredList = allActiveProducts.getContent().stream()
+            List<Product> featuredList = allActiveProducts.stream()
                 .filter(p -> {
                     Boolean featured = p.getIsFeatured();
                     boolean isFeatured = featured != null && featured;
@@ -158,15 +156,24 @@ public class ProductServiceImpl implements ProductService {
                     }
                     return isFeatured;
                 })
+                .sorted((p1, p2) -> {
+                    // Sort by createdAt descending
+                    if (p1.getCreatedAt() == null && p2.getCreatedAt() == null) return 0;
+                    if (p1.getCreatedAt() == null) return 1;
+                    if (p2.getCreatedAt() == null) return -1;
+                    return p2.getCreatedAt().compareTo(p1.getCreatedAt());
+                })
                 .collect(Collectors.toList());
             
-            log.info("Filtered {} featured products from {} active products", featuredList.size(), allActiveProducts.getContent().size());
+            log.info("Filtered {} featured products from {} active products", featuredList.size(), allActiveProducts.size());
             
             if (!featuredList.isEmpty()) {
                 // Apply pagination manually
                 int start = page * size;
                 int end = Math.min(start + size, featuredList.size());
-                List<Product> paginatedList = featuredList.subList(Math.min(start, featuredList.size()), end);
+                List<Product> paginatedList = start < featuredList.size() 
+                    ? featuredList.subList(start, end)
+                    : new ArrayList<>();
                 
                 // Create a custom page
                 Page<Product> featuredPage = new PageImpl<>(
