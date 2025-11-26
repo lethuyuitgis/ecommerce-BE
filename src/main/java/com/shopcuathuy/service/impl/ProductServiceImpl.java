@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -128,6 +129,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "products:featured", key = "'page=' + #page + ':size=' + #size")
     public ProductPageResponseDTO getFeaturedProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = null;
@@ -230,11 +232,23 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "products:flash-sale", key = "'page=' + #page + ':size=' + #size")
     public ProductPageResponseDTO getFlashSaleProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        
+
+        try {
+            Page<Product> products = productRepository.findFlashSaleProducts(Product.ProductStatus.ACTIVE, pageable);
+            if (products.hasContent()) {
+                log.info("Database query returned {} flash sale products", products.getTotalElements());
+                Page<ProductResponseDTO> dtoPage = products.map(this::convertToDTO);
+                return convertToPageResponseDTO(dtoPage);
+            }
+        } catch (Exception ex) {
+            log.warn("Flash sale query failed, falling back to in-memory filtering: {}", ex.getMessage());
+        }
+
         // Flash sale products are those with comparePrice > price (discounted)
-        // Fetch all active products with images and filter in memory
+        // Fallback: fetch all active products with images and filter in memory
         try {
             List<Product> allActiveProducts = productRepository.findByStatusWithImages(Product.ProductStatus.ACTIVE);
             

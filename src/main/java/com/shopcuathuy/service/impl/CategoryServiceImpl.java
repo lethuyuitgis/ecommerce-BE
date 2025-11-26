@@ -7,13 +7,14 @@ import com.shopcuathuy.entity.Category;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.CategoryRepository;
 import com.shopcuathuy.service.CategoryService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CategoryServiceImpl implements CategoryService {
@@ -26,6 +27,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Cacheable(value = "categories:all")
     public List<CategoryResponseDTO> getAllCategories() {
         List<Category> allCategories = categoryRepository.findByParentIsNullAndIsActiveTrue();
         return allCategories.stream()
@@ -42,6 +44,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Cacheable(value = "categories:single", key = "#idOrSlug")
     public CategoryResponseDTO getCategoryByIdOrSlug(String idOrSlug) {
         Category category = categoryRepository.findById(idOrSlug).orElse(null);
         
@@ -58,6 +61,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"categories:all", "categories:single"}, allEntries = true)
     public CategoryResponseDTO createCategory(CreateCategoryRequestDTO request) {
         Category category = new Category();
         category.setId(UUID.randomUUID().toString());
@@ -85,6 +89,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"categories:all", "categories:single"}, allEntries = true)
     public CategoryResponseDTO updateCategory(String id, UpdateCategoryRequestDTO request) {
         Category existing = categoryRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
@@ -108,6 +113,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"categories:all", "categories:single"}, allEntries = true)
     public void deleteCategory(String id) {
         if (!categoryRepository.existsById(id)) {
             throw new ResourceNotFoundException("Category not found");
@@ -117,6 +123,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"categories:all", "categories:single"}, allEntries = true)
     public CategoryResponseDTO toggleActive(String id, Boolean active) {
         Category category = categoryRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Category not found"));

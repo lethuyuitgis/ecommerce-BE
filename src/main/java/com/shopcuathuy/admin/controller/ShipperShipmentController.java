@@ -73,6 +73,12 @@ public class ShipperShipmentController {
             return ResponseEntity.status(403)
                 .body(ApiResponse.error("Access denied. Only shippers can view shipments"));
         }
+        
+        // Kiểm tra trạng thái phê duyệt
+        if (user.getApprovalStatus() != User.ApprovalStatus.APPROVED) {
+            return ResponseEntity.status(403)
+                .body(ApiResponse.error("Tài khoản shipper của bạn chưa được phê duyệt. Vui lòng chờ admin phê duyệt"));
+        }
 
         // Tìm ShippingPartner của shipper này
         Optional<ShippingPartner> partnerOpt = shippingPartnerRepository.findAll().stream()
@@ -125,6 +131,12 @@ public class ShipperShipmentController {
         if (user == null || user.getUserType() != User.UserType.SHIPPER) {
             return ResponseEntity.status(403)
                 .body(ApiResponse.error("Access denied. Only shippers can update shipments"));
+        }
+        
+        // Kiểm tra trạng thái phê duyệt
+        if (user.getApprovalStatus() != User.ApprovalStatus.APPROVED) {
+            return ResponseEntity.status(403)
+                .body(ApiResponse.error("Tài khoản shipper của bạn chưa được phê duyệt. Vui lòng chờ admin phê duyệt"));
         }
 
         // Kiểm tra shipment có thuộc về shipper này không

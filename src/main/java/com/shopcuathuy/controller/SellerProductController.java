@@ -14,11 +14,11 @@ import com.shopcuathuy.entity.Category;
 import com.shopcuathuy.entity.Product;
 import com.shopcuathuy.entity.ProductVariant;
 import com.shopcuathuy.entity.Seller;
+import com.shopcuathuy.exception.ForbiddenException;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.CategoryRepository;
 import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.repository.SellerRepository;
-import com.shopcuathuy.service.ProductService;
 import com.shopcuathuy.service.SellerProductImportService;
 import com.shopcuathuy.service.impl.ProductServiceImpl;
 import java.math.BigDecimal;
@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,7 +47,6 @@ public class SellerProductController {
     private final ProductRepository productRepository;
     private final SellerRepository sellerRepository;
     private final CategoryRepository categoryRepository;
-    private final ProductService productService;
     private final ProductServiceImpl productServiceImpl;
     private final SellerProductImportService sellerProductImportService;
     private final ObjectMapper objectMapper;
@@ -55,20 +55,50 @@ public class SellerProductController {
     public SellerProductController(ProductRepository productRepository,
                                   SellerRepository sellerRepository,
                                   CategoryRepository categoryRepository,
-                                  ProductService productService,
                                   ProductServiceImpl productServiceImpl,
                                   SellerProductImportService sellerProductImportService,
                                   ObjectMapper objectMapper) {
         this.productRepository = productRepository;
         this.sellerRepository = sellerRepository;
         this.categoryRepository = categoryRepository;
-        this.productService = productService;
         this.productServiceImpl = productServiceImpl;
         this.sellerProductImportService = sellerProductImportService;
         this.objectMapper = objectMapper;
     }
 
+    private void checkSellerVerification(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return; // Sẽ được xử lý ở các method gọi
+        }
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElse(null);
+        
+        if (seller == null) {
+            return; // Sẽ được xử lý ở các method gọi
+        }
+        
+        if (seller.getVerificationStatus() == Seller.VerificationStatus.PENDING) {
+            throw new ForbiddenException("Tài khoản seller của bạn đang chờ admin phê duyệt");
+        }
+        
+        if (seller.getVerificationStatus() == Seller.VerificationStatus.REJECTED) {
+            throw new ForbiddenException("Tài khoản seller của bạn đã bị từ chối. Vui lòng liên hệ admin");
+        }
+    }
+
+    private Product.ProductStatus parseProductStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        try {
+            return Product.ProductStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<ProductPageResponseDTO>> getSellerProducts(
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestParam(defaultValue = "0") int page,
@@ -86,41 +116,29 @@ public class SellerProductController {
             .orElseThrow(() -> new ResourceNotFoundException("Seller not found"));
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Product> productPage;
 
-        if (q != null && !q.isEmpty()) {
-            productPage = productRepository.findByNameContainingIgnoreCase(q, pageable);
-        } else if (categoryId != null && !categoryId.isEmpty()) {
-            productPage = productRepository.findByCategoryId(categoryId, pageable);
-        } else {
-            productPage = productRepository.findBySellerId(seller.getId(), pageable);
-        }
+        String keyword = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        String normalizedCategoryId = (categoryId != null && !categoryId.trim().isEmpty()) ? categoryId : null;
+        Product.ProductStatus productStatus = parseProductStatus(status);
 
-        List<Product> filteredProducts = productPage.stream()
-            .filter(p -> p.getSeller() != null && seller.getId().equals(p.getSeller().getId()))
-            .collect(Collectors.toList());
+        Page<Product> productPage = productRepository.searchSellerProducts(
+            seller.getId(),
+            keyword,
+            normalizedCategoryId,
+            productStatus,
+            pageable
+        );
 
-        if (status != null && !status.isEmpty()) {
-            try {
-                Product.ProductStatus productStatus = Product.ProductStatus.valueOf(status.toUpperCase());
-                filteredProducts = filteredProducts.stream()
-                    .filter(p -> p.getStatus() == productStatus)
-                    .collect(Collectors.toList());
-            } catch (IllegalArgumentException e) {
-                // Invalid status, ignore
-            }
-        }
-
-        List<ProductResponseDTO> productDTOs = filteredProducts.stream()
+        List<ProductResponseDTO> productDTOs = productPage.stream()
             .map(productServiceImpl::convertToDTO)
             .collect(Collectors.toList());
 
         ProductPageResponseDTO result = new ProductPageResponseDTO(
             productDTOs,
-            filteredProducts.size(),
-            (int) Math.ceil(filteredProducts.size() / (double) size),
-            size,
-            page
+            (int) productPage.getTotalElements(),
+            productPage.getTotalPages(),
+            productPage.getSize(),
+            productPage.getNumber()
         );
 
         return ResponseEntity.ok(ApiResponse.success(result));
@@ -153,6 +171,7 @@ public class SellerProductController {
 
     @PostMapping("/import")
     @Transactional
+    @CacheEvict(value = {"products:featured", "products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<ImportProductResultDTO>> importProducts(
             @RequestParam("file") MultipartFile file,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
@@ -161,6 +180,9 @@ public class SellerProductController {
             return ResponseEntity.status(401)
                 .body(ApiResponse.error("User not authenticated"));
         }
+
+        // Kiểm tra verification status
+        checkSellerVerification(userId);
 
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -195,6 +217,7 @@ public class SellerProductController {
 
     @PostMapping
     @Transactional
+    @CacheEvict(value = {"products:featured", "products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> createProduct(
             @RequestBody CreateProductRequestDTO request,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
@@ -203,6 +226,9 @@ public class SellerProductController {
             return ResponseEntity.status(401)
                 .body(ApiResponse.error("User not authenticated"));
         }
+
+        // Kiểm tra verification status
+        checkSellerVerification(userId);
 
         Seller seller = sellerRepository.findByUserId(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Seller not found"));
@@ -360,6 +386,7 @@ public class SellerProductController {
 
     @PutMapping("/{id}")
     @Transactional
+    @CacheEvict(value = {"products:featured", "products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateProduct(
             @PathVariable String id,
             @RequestBody SellerUpdateProductRequestDTO request,
@@ -372,6 +399,11 @@ public class SellerProductController {
             !userId.equals(product.getSeller().getUser().getId())) {
             return ResponseEntity.status(403)
                 .body(ApiResponse.error("Access denied"));
+        }
+        
+        // Kiểm tra verification status
+        if (userId != null) {
+            checkSellerVerification(userId);
         }
 
         if (request.name != null) product.setName(request.name);
@@ -510,6 +542,7 @@ public class SellerProductController {
 
     @DeleteMapping("/{id}")
     @Transactional
+    @CacheEvict(value = {"products:featured", "products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<Void>> deleteProduct(
             @PathVariable String id,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
@@ -522,6 +555,11 @@ public class SellerProductController {
             return ResponseEntity.status(403)
                 .body(ApiResponse.error("Access denied"));
         }
+        
+        // Kiểm tra verification status
+        if (userId != null) {
+            checkSellerVerification(userId);
+        }
 
         productRepository.delete(product);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -529,6 +567,7 @@ public class SellerProductController {
 
     @PostMapping("/{id}/featured")
     @Transactional
+    @CacheEvict(value = {"products:featured"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateFeatured(
             @PathVariable String id,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
@@ -538,6 +577,9 @@ public class SellerProductController {
             return ResponseEntity.status(401)
                 .body(ApiResponse.error("User not authenticated"));
         }
+
+        // Kiểm tra verification status
+        checkSellerVerification(userId);
 
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -559,6 +601,7 @@ public class SellerProductController {
 
     @PostMapping("/{id}/flash-sale")
     @Transactional
+    @CacheEvict(value = {"products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateFlashSale(
             @PathVariable String id,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
@@ -568,6 +611,9 @@ public class SellerProductController {
             return ResponseEntity.status(401)
                 .body(ApiResponse.error("User not authenticated"));
         }
+
+        // Kiểm tra verification status
+        checkSellerVerification(userId);
 
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Product not found"));

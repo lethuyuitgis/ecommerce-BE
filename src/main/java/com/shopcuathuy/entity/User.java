@@ -52,6 +52,10 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status", length = 20)
+    private ApprovalStatus approvalStatus;
+    
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserAddress> addresses = new ArrayList<>();
     
@@ -83,6 +87,10 @@ public class User extends BaseEntity {
     
     public enum UserStatus {
         ACTIVE, INACTIVE, BANNED
+    }
+    
+    public enum ApprovalStatus {
+        PENDING, APPROVED, REJECTED
     }
 }
 

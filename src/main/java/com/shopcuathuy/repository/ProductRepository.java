@@ -16,6 +16,17 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     Page<Product> findByCategoryId(String categoryId, Pageable pageable);
     Page<Product> findBySellerId(String sellerId, Pageable pageable);
     Page<Product> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    @Query("SELECT p FROM Product p " +
+           "WHERE p.seller.id = :sellerId " +
+           "AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:categoryId IS NULL OR p.category.id = :categoryId) " +
+           "AND (:status IS NULL OR p.status = :status)")
+    Page<Product> searchSellerProducts(@Param("sellerId") String sellerId,
+                                       @Param("keyword") String keyword,
+                                       @Param("categoryId") String categoryId,
+                                       @Param("status") Product.ProductStatus status,
+                                       Pageable pageable);
     
     // Advanced search query - search in name, description, SKU, category name, seller name
     @Query("SELECT DISTINCT p FROM Product p " +
@@ -47,6 +58,10 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category LEFT JOIN FETCH p.seller LEFT JOIN FETCH p.images WHERE p.status = :status AND p.isFeatured = :isFeatured")
     Page<Product> findFeaturedProductsByParam(@Param("status") Product.ProductStatus status, @Param("isFeatured") Boolean isFeatured, Pageable pageable);
     
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category LEFT JOIN FETCH p.seller LEFT JOIN FETCH p.images " +
+           "WHERE p.status = :status AND p.comparePrice IS NOT NULL AND p.price IS NOT NULL AND p.comparePrice > p.price")
+    Page<Product> findFlashSaleProducts(@Param("status") Product.ProductStatus status, Pageable pageable);
+
     @Query("SELECT p FROM Product p WHERE p.category.slug = :slug AND p.status = :status")
     Page<Product> findByCategorySlug(@Param("slug") String slug, @Param("status") Product.ProductStatus status, Pageable pageable);
     

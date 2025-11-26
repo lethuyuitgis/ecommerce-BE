@@ -10,6 +10,7 @@ import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.service.ProductService;
 import com.shopcuathuy.service.impl.ProductServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +40,7 @@ public class ProductAdminController {
 
     @PostMapping("/{id}/featured")
     @Transactional
+    @CacheEvict(value = {"products:featured"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateFeatured(
             @PathVariable String id,
             @RequestBody UpdateFeaturedRequestDTO request
@@ -56,6 +58,7 @@ public class ProductAdminController {
 
     @PostMapping("/{id}/flash-sale")
     @Transactional
+    @CacheEvict(value = {"products:flash-sale"}, allEntries = true)
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateFlashSale(
             @PathVariable String id,
             @RequestBody UpdateFlashSaleRequestDTO request

@@ -44,11 +44,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/seller/create").authenticated()
                 // Allow authenticated users to view their own seller profile
                 .requestMatchers("/api/seller/profile").authenticated()
+                // Allow authenticated users to register as shipper
+                .requestMatchers("/api/shipper/register", "/api/shipper/status").authenticated()
                 .requestMatchers("/api/upload/**").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Shipper endpoints
+                // Shipper endpoints (verification will be checked in controller)
                 .requestMatchers("/api/shipments/my-shipments", "/api/shipments/{id}/status").hasAnyRole("SHIPPER", "ADMIN")
-                // All other seller endpoints require SELLER or ADMIN role
+                // All other seller endpoints require SELLER or ADMIN role (verification will be checked in controller)
                 .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "ADMIN")
                 .anyRequest().authenticated()
             )

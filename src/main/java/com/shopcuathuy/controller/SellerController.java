@@ -42,7 +42,20 @@ public class SellerController {
                 .body(ApiResponse.error("Seller profile not found"));
         }
 
-        return ResponseEntity.ok(ApiResponse.success(convertToDTO(sellerOpt.get())));
+        Seller seller = sellerOpt.get();
+        
+        // Kiểm tra trạng thái phê duyệt
+        if (seller.getVerificationStatus() == Seller.VerificationStatus.PENDING) {
+            return ResponseEntity.status(403)
+                .body(ApiResponse.error("Tài khoản seller của bạn đang chờ admin phê duyệt"));
+        }
+        
+        if (seller.getVerificationStatus() == Seller.VerificationStatus.REJECTED) {
+            return ResponseEntity.status(403)
+                .body(ApiResponse.error("Tài khoản seller của bạn đã bị từ chối. Vui lòng liên hệ admin"));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(convertToDTO(seller)));
     }
 
     @PostMapping("/create")
@@ -77,6 +90,8 @@ public class SellerController {
         seller.setShopEmail(payload.shopEmail != null ? payload.shopEmail : user.getEmail());
         seller.setProvince(payload.province);
         seller.setDistrict(payload.district);
+        // Set status to PENDING - cần admin phê duyệt
+        seller.setVerificationStatus(Seller.VerificationStatus.PENDING);
 
         Seller saved = sellerRepository.save(seller);
 
