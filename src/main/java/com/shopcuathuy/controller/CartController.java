@@ -44,7 +44,7 @@ public class CartController {
         if (userId == null || userId.isEmpty()) {
             // Return success but indicate it's a guest cart
             // Frontend will handle storing in localStorage
-            return ResponseEntity.ok(ApiResponse.success(null, "Item added to guest cart. Please login to save permanently."));
+            return ResponseEntity.ok(ApiResponse.success("Item added to guest cart. Please login to save permanently.", (CartItemResponseDTO) null));
         }
 
         CartItemResponseDTO cartItem = cartService.addToCart(userId, request);
@@ -59,7 +59,7 @@ public class CartController {
         
         // Allow guest users to update cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.success(null, "Cart updated in guest mode. Please login to save permanently."));
+            return ResponseEntity.ok(ApiResponse.success("Cart updated in guest mode. Please login to save permanently.", (CartItemResponseDTO) null));
         }
 
         CartItemResponseDTO cartItem = cartService.updateCartItem(userId, id, request);
@@ -73,7 +73,7 @@ public class CartController {
         
         // Allow guest users to remove from cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.success(null, "Item removed from guest cart."));
+            return ResponseEntity.ok(ApiResponse.success("Item removed from guest cart.", (Void) null));
         }
 
         cartService.removeFromCart(userId, id);
@@ -86,7 +86,7 @@ public class CartController {
         
         // Allow guest users to clear cart (handled in localStorage on frontend)
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.success(null, "Guest cart cleared."));
+            return ResponseEntity.ok(ApiResponse.success("Guest cart cleared.", (Void) null));
         }
 
         cartService.clearCart(userId);

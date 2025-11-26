@@ -1,5 +1,6 @@
 package com.shopcuathuy.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopcuathuy.dto.request.UpdateProductRequestDTO;
 import com.shopcuathuy.dto.response.ProductPageResponseDTO;
 import com.shopcuathuy.dto.response.ProductResponseDTO;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
