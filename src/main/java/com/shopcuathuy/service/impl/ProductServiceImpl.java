@@ -49,10 +49,40 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public ProductPageResponseDTO searchProducts(String keyword, int page, int size) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            // If keyword is empty, return all active products
+            return getAllProducts(page, size, "createdAt", "DESC");
+        }
+        
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Product> products = productRepository.findByNameContainingIgnoreCase(keyword, pageable);
-        Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-        return convertToPageResponseDTO(productPage);
+        
+        // Use advanced search that searches in name, description, SKU, category, seller
+        try {
+            Page<Product> products = productRepository.searchProducts(
+                Product.ProductStatus.ACTIVE, 
+                keyword.trim(), 
+                pageable
+            );
+            
+            log.info("Search for '{}' returned {} products", keyword, products.getTotalElements());
+            
+            Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
+            return convertToPageResponseDTO(productPage);
+        } catch (Exception e) {
+            log.error("Error searching products with keyword '{}': {}", keyword, e.getMessage(), e);
+            // Fallback to simple name search
+            try {
+                Page<Product> products = productRepository.findByNameContainingIgnoreCase(keyword.trim(), pageable);
+                Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
+                return convertToPageResponseDTO(productPage);
+            } catch (Exception fallbackError) {
+                log.error("Fallback search also failed", fallbackError);
+                // Return empty result
+                Page<Product> emptyPage = Page.empty(pageable);
+                Page<ProductResponseDTO> productPage = emptyPage.map(this::convertToDTO);
+                return convertToPageResponseDTO(productPage);
+            }
+        }
     }
 
     @Override
@@ -201,8 +231,67 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public ProductPageResponseDTO getFlashSaleProducts(int page, int size) {
-        // Tạm thời dùng featured làm dữ liệu flash sale, đều lấy từ DB
-        return getFeaturedProducts(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        
+        // Flash sale products are those with comparePrice > price (discounted)
+        // Fetch all active products with images and filter in memory
+        try {
+            List<Product> allActiveProducts = productRepository.findByStatusWithImages(Product.ProductStatus.ACTIVE);
+            
+            log.info("Found {} active products total. Checking for flash sale products (comparePrice > price)...", allActiveProducts.size());
+            
+            // Filter flash sale products: comparePrice > price means there's a discount
+            List<Product> flashSaleList = allActiveProducts.stream()
+                .filter(p -> {
+                    if (p.getComparePrice() == null || p.getPrice() == null) {
+                        return false;
+                    }
+                    // Flash sale: comparePrice > price (original price > current price)
+                    boolean isFlashSale = p.getComparePrice().compareTo(p.getPrice()) > 0;
+                    if (isFlashSale) {
+                        log.debug("Found flash sale product: {} - price={}, comparePrice={}", 
+                            p.getId(), p.getPrice(), p.getComparePrice());
+                    }
+                    return isFlashSale;
+                })
+                .sorted((p1, p2) -> {
+                    // Sort by createdAt descending
+                    if (p1.getCreatedAt() == null && p2.getCreatedAt() == null) return 0;
+                    if (p1.getCreatedAt() == null) return 1;
+                    if (p2.getCreatedAt() == null) return -1;
+                    return p2.getCreatedAt().compareTo(p1.getCreatedAt());
+                })
+                .collect(Collectors.toList());
+            
+            log.info("Filtered {} flash sale products from {} active products", flashSaleList.size(), allActiveProducts.size());
+            
+            if (!flashSaleList.isEmpty()) {
+                // Apply pagination manually
+                int start = page * size;
+                int end = Math.min(start + size, flashSaleList.size());
+                List<Product> paginatedList = start < flashSaleList.size() 
+                    ? flashSaleList.subList(start, end)
+                    : new ArrayList<>();
+                
+                // Create a custom page
+                Page<Product> flashSalePage = new PageImpl<>(
+                    paginatedList,
+                    pageable,
+                    flashSaleList.size()
+                );
+                
+                Page<ProductResponseDTO> productPage = flashSalePage.map(this::convertToDTO);
+                return convertToPageResponseDTO(productPage);
+            }
+        } catch (Exception e) {
+            log.error("Error fetching flash sale products", e);
+        }
+        
+        // If no flash sale products found, return empty
+        log.warn("No flash sale products found");
+        Page<Product> emptyPage = Page.empty(pageable);
+        Page<ProductResponseDTO> productPage = emptyPage.map(this::convertToDTO);
+        return convertToPageResponseDTO(productPage);
     }
 
     @Override
@@ -275,6 +364,23 @@ public class ProductServiceImpl implements ProductService {
         dto.totalSold = product.getTotalSold();
         dto.totalViews = product.getTotalViews();
         dto.isFeatured = product.getIsFeatured();
+        
+        // Set flash sale fields
+        // Flash sale is enabled if comparePrice > price (discounted)
+        if (product.getComparePrice() != null && product.getPrice() != null 
+            && product.getComparePrice().compareTo(product.getPrice()) > 0) {
+            dto.flashSaleEnabled = true;
+            dto.flashSalePrice = product.getPrice().doubleValue();
+            // Note: flashSaleStart, flashSaleEnd, flashSaleStock, flashSaleSold 
+            // would need to be stored in Product entity or separate table
+            // For now, set defaults
+            dto.flashSaleStock = product.getQuantity();
+            dto.flashSaleSold = product.getTotalSold();
+        } else {
+            dto.flashSaleEnabled = false;
+            dto.flashSalePrice = null;
+        }
+        
         // Handle null category gracefully (in case of orphaned foreign keys)
         try {
             dto.categoryId = product.getCategory() != null ? product.getCategory().getId() : null;

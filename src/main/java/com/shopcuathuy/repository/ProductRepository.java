@@ -17,6 +17,23 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     Page<Product> findBySellerId(String sellerId, Pageable pageable);
     Page<Product> findByNameContainingIgnoreCase(String name, Pageable pageable);
     
+    // Advanced search query - search in name, description, SKU, category name, seller name
+    @Query("SELECT DISTINCT p FROM Product p " +
+           "LEFT JOIN FETCH p.category " +
+           "LEFT JOIN FETCH p.seller " +
+           "LEFT JOIN FETCH p.images " +
+           "WHERE p.status = :status " +
+           "AND (" +
+           "   LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "   OR LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "   OR LOWER(p.sku) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "   OR LOWER(p.category.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "   OR LOWER(p.seller.shopName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           ")")
+    Page<Product> searchProducts(@Param("status") Product.ProductStatus status, 
+                                 @Param("keyword") String keyword, 
+                                 Pageable pageable);
+    
     // Method name query - Spring Data JPA will handle Boolean mapping
     // Use LEFT JOIN to handle missing categories gracefully
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.category LEFT JOIN FETCH p.seller LEFT JOIN FETCH p.images WHERE p.status = :status AND p.isFeatured = :isFeatured")
