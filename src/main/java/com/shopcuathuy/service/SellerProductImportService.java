@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -134,7 +135,7 @@ public class SellerProductImportService {
     }
 
     public ExportedFileDTO exportProducts(Seller seller) {
-        List<Product> products = productRepository.findBySellerId(seller.getId());
+        List<Product> products = productRepository.findBySellerId(seller.getId(), Pageable.unpaged()).getContent();
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Products");
             createHeaderRow(sheet);
