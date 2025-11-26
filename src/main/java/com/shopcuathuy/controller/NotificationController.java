@@ -1,11 +1,13 @@
 package com.shopcuathuy.controller;
 
 import com.shopcuathuy.api.ApiResponse;
+import com.shopcuathuy.dto.response.NotificationPageResponseDTO;
+import com.shopcuathuy.dto.response.NotificationResponseDTO;
 import com.shopcuathuy.entity.Notification;
-import com.shopcuathuy.entity.User;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.NotificationRepository;
 import com.shopcuathuy.repository.UserRepository;
+import com.shopcuathuy.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -24,33 +24,38 @@ public class NotificationController {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Autowired
     public NotificationController(NotificationRepository notificationRepository,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository,
+                                  NotificationService notificationService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getNotifications(
+    public ResponseEntity<ApiResponse<NotificationPageResponseDTO>> getNotifications(
             @RequestParam String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Pageable pageable = PageRequest.of(page, size);
         Page<Notification> notificationPage = notificationRepository
             .findByRecipientIdOrderByCreatedAtDesc(userId, pageable);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("content", notificationPage.getContent().stream().map(this::convertToDTO).toList());
-        response.put("totalElements", notificationPage.getTotalElements());
-        response.put("totalPages", notificationPage.getTotalPages());
-        response.put("size", notificationPage.getSize());
-        response.put("number", notificationPage.getNumber());
+        NotificationPageResponseDTO response = new NotificationPageResponseDTO();
+        response.setContent(notificationPage.getContent().stream()
+            .map(notificationService::toResponseDTO)
+            .toList());
+        response.setTotalElements(notificationPage.getTotalElements());
+        response.setTotalPages(notificationPage.getTotalPages());
+        response.setSize(notificationPage.getSize());
+        response.setNumber(notificationPage.getNumber());
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -59,7 +64,7 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Integer>> getUnreadCount(
             @RequestParam String userId) {
         
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         long unreadCount = notificationRepository.countByRecipientIdAndIsReadFalse(userId);
@@ -68,11 +73,11 @@ public class NotificationController {
 
     @PostMapping("/{id}/read")
     @Transactional
-    public ResponseEntity<ApiResponse<Map<String, Object>>> markAsRead(
+    public ResponseEntity<ApiResponse<NotificationResponseDTO>> markAsRead(
             @PathVariable String id,
             @RequestParam String userId) {
         
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Notification notification = notificationRepository.findById(id)
@@ -87,7 +92,8 @@ public class NotificationController {
         notification.setReadAt(LocalDateTime.now());
         notification = notificationRepository.save(notification);
 
-        return ResponseEntity.ok(ApiResponse.success(convertToDTO(notification)));
+        NotificationResponseDTO dto = notificationService.toResponseDTO(notification);
+        return ResponseEntity.ok(ApiResponse.success(dto));
     }
 
     @PostMapping("/read-all")
@@ -95,7 +101,7 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(
             @RequestParam String userId) {
         
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         notificationRepository.findByRecipientId(userId).forEach(notification -> {
@@ -115,7 +121,7 @@ public class NotificationController {
             @PathVariable String id,
             @RequestParam String userId) {
         
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Notification notification = notificationRepository.findById(id)
@@ -130,19 +136,5 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    private Map<String, Object> convertToDTO(Notification notification) {
-        Map<String, Object> dto = new HashMap<>();
-        dto.put("id", notification.getId());
-        dto.put("userId", notification.getRecipient() != null ? notification.getRecipient().getId() : null);
-        dto.put("title", notification.getTitle());
-        dto.put("message", notification.getMessage());
-        dto.put("type", notification.getType() != null ? notification.getType().name() : null);
-        dto.put("linkUrl", notification.getLinkUrl());
-        dto.put("imageUrl", notification.getImageUrl());
-        dto.put("isRead", notification.getIsRead());
-        dto.put("createdAt", notification.getCreatedAt() != null ?
-            notification.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant() : null);
-        return dto;
-    }
 }
 

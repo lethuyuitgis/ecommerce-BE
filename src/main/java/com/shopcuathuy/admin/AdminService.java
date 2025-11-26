@@ -32,6 +32,7 @@ import com.shopcuathuy.repository.ShippingMethodRepository;
 import com.shopcuathuy.repository.ShippingPartnerRepository;
 import com.shopcuathuy.repository.UserRepository;
 import com.shopcuathuy.repository.VoucherRepository;
+import com.shopcuathuy.service.NotificationService;
 import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.Duration;
@@ -78,6 +79,7 @@ public class AdminService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     public AdminService(ComplaintRepository complaintRepository,
@@ -95,6 +97,7 @@ public class AdminService {
                         OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
                         NotificationRepository notificationRepository,
+                        NotificationService notificationService,
                         ObjectMapper objectMapper) {
         this.complaintRepository = complaintRepository;
         this.complaintMessageRepository = complaintMessageRepository;
@@ -111,6 +114,7 @@ public class AdminService {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.notificationRepository = notificationRepository;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -891,16 +895,17 @@ public class AdminService {
         if (recipientId == null || recipientId.isBlank()) {
             return;
         }
-        userRepository.findById(recipientId).ifPresent(user -> {
-            Notification notification = new Notification();
-            notification.setRecipient(user);
-            notification.setType(Notification.NotificationType.COMPLAINT);
-            notification.setTitle(title);
-            notification.setMessage(message);
-            notification.setRelatedId(complaintId);
-            notification.setLinkUrl(linkUrl);
-            notificationRepository.save(notification);
-        });
+        userRepository.findById(recipientId).ifPresent(user ->
+            notificationService.createAndDispatch(
+                user,
+                Notification.NotificationType.COMPLAINT,
+                title,
+                message,
+                linkUrl,
+                complaintId,
+                null
+            )
+        );
     }
 
     private AdminUserDTO toAdminUserDTO(User user) {

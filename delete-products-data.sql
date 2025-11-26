@@ -46,3 +46,4 @@ ALTER TABLE products AUTO_INCREMENT = 1;
 -- Hiển thị thông báo
 SELECT 'Đã xóa tất cả dữ liệu products và các bảng liên quan. Categories được giữ lại.' AS message;
 
+

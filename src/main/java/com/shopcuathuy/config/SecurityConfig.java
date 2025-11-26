@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -38,8 +39,18 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Allow health checks
-                .requestMatchers("/api/auth/**", "/api/products/**", "/api/categories/**", "/api/public/**", "/api/home/**", "/api/promotions/**", "/api/cart/**").permitAll()
+                .requestMatchers(
+                    "/api/auth/**",
+                    "/api/products/**",
+                    "/api/categories/**",
+                    "/api/public/**",
+                    "/api/home/**",
+                    "/api/promotions/**",
+                    "/api/cart/**").permitAll()
                 .requestMatchers("/api/upload/image/**").permitAll() // Allow public access to image proxy
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+                .requestMatchers("/ws/**").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Allow authenticated users to create seller profile (before they have SELLER role)
                 .requestMatchers("/api/seller/create").authenticated()
                 // Allow authenticated users to view their own seller profile

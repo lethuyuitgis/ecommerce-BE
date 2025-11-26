@@ -9,11 +9,14 @@ import com.shopcuathuy.entity.Conversation;
 import com.shopcuathuy.entity.Message;
 import com.shopcuathuy.entity.Seller;
 import com.shopcuathuy.entity.User;
+import com.shopcuathuy.entity.Notification;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.ConversationRepository;
 import com.shopcuathuy.repository.MessageRepository;
 import com.shopcuathuy.repository.SellerRepository;
 import com.shopcuathuy.repository.UserRepository;
+import com.shopcuathuy.service.NotificationService;
+import com.shopcuathuy.service.RealtimeMessagingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,16 +40,22 @@ public class MessageController {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final SellerRepository sellerRepository;
+    private final RealtimeMessagingService realtimeMessagingService;
+    private final NotificationService notificationService;
 
     @Autowired
     public MessageController(ConversationRepository conversationRepository,
                             MessageRepository messageRepository,
                             UserRepository userRepository,
-                            SellerRepository sellerRepository) {
+                            SellerRepository sellerRepository,
+                            RealtimeMessagingService realtimeMessagingService,
+                            NotificationService notificationService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.sellerRepository = sellerRepository;
+        this.realtimeMessagingService = realtimeMessagingService;
+        this.notificationService = notificationService;
     }
 
     /* ===================== Customer Endpoints ===================== */
@@ -179,7 +188,9 @@ public class MessageController {
         conversation.setSellerUnreadCount(conversation.getSellerUnreadCount() + 1);
         conversationRepository.save(conversation);
 
-        return ResponseEntity.ok(ApiResponse.success(convertMessageToDTO(message)));
+        ChatMessageResponseDTO dto = convertMessageToDTO(message);
+        broadcastMessage(conversation, dto, customer);
+        return ResponseEntity.ok(ApiResponse.success(dto));
     }
 
     /* ===================== Seller Endpoints ===================== */
@@ -312,7 +323,9 @@ public class MessageController {
             LocalDateTime.now());
         conversationRepository.save(conversation);
 
-        return ResponseEntity.ok(ApiResponse.success(convertMessageToDTO(message)));
+        ChatMessageResponseDTO dto = convertMessageToDTO(message);
+        broadcastMessage(conversation, dto, sellerUser);
+        return ResponseEntity.ok(ApiResponse.success(dto));
     }
 
     /* ===================== Helpers ===================== */
@@ -406,5 +419,59 @@ public class MessageController {
         return dto;
     }
 
+    private void broadcastMessage(Conversation conversation, ChatMessageResponseDTO dto, User sender) {
+        if (conversation == null || dto == null || sender == null) {
+            return;
+        }
+
+        realtimeMessagingService.sendChatMessage(conversation.getId(), dto);
+
+        User recipient = resolveRecipient(conversation, sender);
+        if (recipient == null || recipient.getId() == null || recipient.getId().equals(sender.getId())) {
+            return;
+        }
+
+        String link = recipient.getUserType() == User.UserType.SELLER
+            ? "/seller/messages?conversationId=" + conversation.getId()
+            : "/messages?conversationId=" + conversation.getId();
+
+        notificationService.createAndDispatch(
+            recipient,
+            Notification.NotificationType.CHAT_MESSAGE,
+            buildNotificationTitle(sender),
+            truncateContent(dto.content),
+            link,
+            conversation.getId(),
+            null
+        );
+    }
+
+    private User resolveRecipient(Conversation conversation, User sender) {
+        if (conversation.getSeller() != null &&
+            conversation.getSeller().getUser() != null &&
+            !conversation.getSeller().getUser().getId().equals(sender.getId())) {
+            return conversation.getSeller().getUser();
+        }
+        if (conversation.getCustomer() != null &&
+            !conversation.getCustomer().getId().equals(sender.getId())) {
+            return conversation.getCustomer();
+        }
+        return null;
+    }
+
+    private String buildNotificationTitle(User sender) {
+        if (sender == null) {
+            return "Tin nhắn mới";
+        }
+        String name = sender.getFullName() != null ? sender.getFullName() : sender.getEmail();
+        return name != null ? "Tin nhắn mới từ " + name : "Tin nhắn mới";
+    }
+
+    private String truncateContent(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.length() > 160 ? content.substring(0, 157) + "..." : content;
+    }
 }
 

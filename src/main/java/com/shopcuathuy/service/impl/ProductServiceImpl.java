@@ -129,7 +129,11 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "products:featured", key = "'page=' + #page + ':size=' + #size")
+    @Cacheable(
+        value = "products:featured",
+        key = "'page=' + #page + ':size=' + #size",
+        unless = "#result == null || #result.content == null || #result.content.isEmpty()"
+    )
     public ProductPageResponseDTO getFeaturedProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = null;
@@ -232,7 +236,11 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "products:flash-sale", key = "'page=' + #page + ':size=' + #size")
+    @Cacheable(
+        value = "products:flash-sale",
+        key = "'page=' + #page + ':size=' + #size",
+        unless = "#result == null || #result.content == null || #result.content.isEmpty()"
+    )
     public ProductPageResponseDTO getFlashSaleProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 

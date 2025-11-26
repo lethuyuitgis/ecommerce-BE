@@ -53,6 +53,6 @@ public class Notification extends BaseEntity {
     private LocalDateTime readAt;
     
     public enum NotificationType {
-        ORDER_NEW, ORDER_STATUS, PROMOTION, SYSTEM, COMPLAINT
+        ORDER_NEW, ORDER_STATUS, PROMOTION, SYSTEM, COMPLAINT, CHAT_MESSAGE
     }
 }
