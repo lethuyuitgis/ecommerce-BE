@@ -35,7 +35,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Allow health checks
-                .requestMatchers("/api/auth/**", "/api/products/**", "/api/categories/**", "/api/public/**", "/api/home/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/products/**", "/api/categories/**", "/api/public/**", "/api/home/**", "/api/promotions/**").permitAll()
                 .requestMatchers("/api/upload/image/**").permitAll() // Allow public access to image proxy
                 // Allow authenticated users to create seller profile (before they have SELLER role)
                 .requestMatchers("/api/seller/create").authenticated()
