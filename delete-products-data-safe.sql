@@ -48,3 +48,5 @@ ALTER TABLE products AUTO_INCREMENT = 1;
 SELECT 'Đã xóa tất cả dữ liệu products và các bảng liên quan. Categories và Orders được giữ lại.' AS message;
 
 
+
+
