@@ -1,0 +1,14 @@
+-- Bổ sung ảnh cho các sản phẩm chưa có image (sử dụng Picsum deterministic seeds)
+INSERT INTO product_images (id, product_id, image_url, alt_text, display_order, is_primary, created_at, updated_at) VALUES
+('img-iphone15-1',       'pd-iphone15',          'https://cdn.tgdd.vn/Products/Images/42/305658/iphone-15-pink-thumb-600x600.jpg',                       'iPhone 15 Pink',                      1, TRUE, NOW(), NOW()),
+('img-xiaomi14u-1',      'pd-xiaomi14u',         'https://cdn.tgdd.vn/Products/Images/42/318941/xiaomi-14-ultra-black-thumb-600x600.jpg',               'Xiaomi 14 Ultra Black',               1, TRUE, NOW(), NOW()),
+('img-oppof25-1',        'pd-oppo-f25',          'https://cdn.tgdd.vn/Products/Images/42/322931/oppo-find-x7-ultra-blue-thumb-600x600.jpg',             'OPPO Find X7 Pro Blue',               1, TRUE, NOW(), NOW()),
+('img-dellxps15-1',      'pd-dell-xps15',        'https://cdn.tgdd.vn/Products/Images/44/322116/dell-xps-15-9530-i7-rtx-thumb-600x600.jpg',             'Dell XPS 15',                         1, TRUE, NOW(), NOW()),
+('img-asuszen-1',        'pd-asus-zenbook',      'https://cdn.tgdd.vn/Products/Images/44/315140/asus-zenbook-14-oled-um3402ya-r7-thumb-600x600.jpg',    'ASUS ZenBook 14',                     1, TRUE, NOW(), NOW()),
+('img-quanjean-1',       'pd-quan-jean-levis',   'https://lsco.scene7.com/is/image/lsco/045111934-front-pdp-lse?fmt=jpeg&qlt=70,1&op_sharpen=0&resMode=sharp2&fit=crop,0&op_usm=0.8,1,10,0&iccEmbed=0&printRes=72&wid=600&hei=600', 'Levis 511',  1, TRUE, NOW(), NOW()),
+('img-tuicoach-1',       'pd-tui-coach',         'https://coach.scene7.com/is/image/Coach/c8595_b4nq3_a0?$desktopProduct$',                              'Coach Tabby 26',                       1, TRUE, NOW(), NOW()),
+('img-noizojirushi-1',   'pd-noicom-zojirushi',  'https://picsum.photos/seed/zojirushi/600/600',                                                          'Nồi cơm Zojirushi',                    1, TRUE, NOW(), NOW()),
+('img-karofi-1',         'pd-maylocnuoc-karofi', 'https://picsum.photos/seed/karofi/600/600',                                                             'Máy lọc nước Karofi',                  1, TRUE, NOW(), NOW()),
+('img-robotxiaomi-1',    'pd-robot-huttbui',     'https://picsum.photos/seed/robot-vacuum/600/600',                                                       'Robot hút bụi Xiaomi',                1, TRUE, NOW(), NOW()),
+('img-vitc-1',           'pd-serum-vitamin-c',   'https://picsum.photos/seed/paulas-choice/600/600',                                                      'Paula''s Choice C15',                 1, TRUE, NOW(), NOW()),
+('img-mac-1',            'pd-thoi-mac',          'https://picsum.photos/seed/mac-ruby-woo/600/600',                                                       'MAC Ruby Woo',                         1, TRUE, NOW(), NOW());

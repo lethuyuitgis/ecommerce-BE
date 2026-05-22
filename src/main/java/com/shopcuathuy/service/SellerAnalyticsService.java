@@ -1,15 +1,15 @@
 package com.shopcuathuy.service;
 
-import com.shopcuathuy.admin.dto.CategoryRevenueDTO;
-import com.shopcuathuy.admin.dto.CustomerLocationDTO;
-import com.shopcuathuy.admin.dto.CustomerTypeDTO;
-import com.shopcuathuy.admin.dto.LowStockProductDTO;
-import com.shopcuathuy.admin.dto.RevenuePointDTO;
-import com.shopcuathuy.admin.dto.SellerAnalyticsDashboardDTO;
-import com.shopcuathuy.admin.dto.SellerAnalyticsOverviewDTO;
-import com.shopcuathuy.admin.dto.TopProductDTO;
-import com.shopcuathuy.admin.dto.TrafficPointDTO;
-import com.shopcuathuy.admin.dto.TrafficSourceDTO;
+import com.shopcuathuy.dto.admin.CategoryRevenueDTO;
+import com.shopcuathuy.dto.admin.CustomerLocationDTO;
+import com.shopcuathuy.dto.admin.CustomerTypeDTO;
+import com.shopcuathuy.dto.admin.LowStockProductDTO;
+import com.shopcuathuy.dto.admin.RevenuePointDTO;
+import com.shopcuathuy.dto.admin.SellerAnalyticsDashboardDTO;
+import com.shopcuathuy.dto.admin.SellerAnalyticsOverviewDTO;
+import com.shopcuathuy.dto.admin.TopProductDTO;
+import com.shopcuathuy.dto.admin.TrafficPointDTO;
+import com.shopcuathuy.dto.admin.TrafficSourceDTO;
 import com.shopcuathuy.entity.Order;
 import com.shopcuathuy.entity.Product;
 import com.shopcuathuy.entity.Seller;

@@ -1,6 +1,6 @@
 package com.shopcuathuy.dto;
 
-import com.shopcuathuy.admin.dto.RevenuePointDTO;
+import com.shopcuathuy.dto.admin.RevenuePointDTO;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;

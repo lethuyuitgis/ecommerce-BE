@@ -1,14 +1,24 @@
 package com.shopcuathuy.controller;
 
+import com.shopcuathuy.dto.admin.SellerAnalyticsDashboardDTO;
 import com.shopcuathuy.api.ApiResponse;
+import com.shopcuathuy.dto.response.SellerOverviewResponseDTO;
+import com.shopcuathuy.dto.response.SellerResponseDTO;
 import com.shopcuathuy.dto.request.CreateSellerRequestDTO;
 import com.shopcuathuy.dto.request.UpdateSellerRequestDTO;
-import com.shopcuathuy.dto.response.SellerResponseDTO;
+import com.shopcuathuy.entity.Order;
+import com.shopcuathuy.entity.Product;
 import com.shopcuathuy.entity.Seller;
 import com.shopcuathuy.entity.User;
 import com.shopcuathuy.exception.ResourceNotFoundException;
+import com.shopcuathuy.repository.OrderRepository;
+import com.shopcuathuy.repository.ProductRepository;
 import com.shopcuathuy.repository.SellerRepository;
 import com.shopcuathuy.repository.UserRepository;
+import com.shopcuathuy.service.SellerAnalyticsService;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,11 +30,20 @@ public class SellerController {
 
     private final SellerRepository sellerRepository;
     private final UserRepository userRepository;
+    private final OrderRepository orderRepository;
+    private final ProductRepository productRepository;
+    private final SellerAnalyticsService sellerAnalyticsService;
 
     public SellerController(SellerRepository sellerRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            OrderRepository orderRepository,
+                            ProductRepository productRepository,
+                            SellerAnalyticsService sellerAnalyticsService) {
         this.sellerRepository = sellerRepository;
         this.userRepository = userRepository;
+        this.orderRepository = orderRepository;
+        this.productRepository = productRepository;
+        this.sellerAnalyticsService = sellerAnalyticsService;
     }
 
     @GetMapping("/profile")
@@ -56,6 +75,86 @@ public class SellerController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(convertToDTO(seller)));
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<ApiResponse<SellerOverviewResponseDTO>> getOverview(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Seller profile not found"));
+
+        String sellerId = seller.getId();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime monthAgo = now.minusDays(30);
+        LocalDateTime twoMonthsAgo = now.minusDays(60);
+
+        // Current period
+        BigDecimal totalRevenue = orderRepository.sumRevenueBySellerIdAndDateRangeAndStatus(
+            sellerId, LocalDateTime.of(2000, 1, 1, 0, 0), now, Order.OrderStatus.DELIVERED);
+        long newOrders = orderRepository.countBySellerIdAndDateRange(sellerId, monthAgo, now);
+        long totalProducts = productRepository.countBySellerId(sellerId);
+
+        // Previous period (for change calculation)
+        BigDecimal prevRevenue = orderRepository.sumRevenueBySellerIdAndDateRangeAndStatus(
+            sellerId, twoMonthsAgo, monthAgo, Order.OrderStatus.DELIVERED);
+        long prevOrders = orderRepository.countBySellerIdAndDateRange(sellerId, twoMonthsAgo, monthAgo);
+
+        SellerOverviewResponseDTO overview = new SellerOverviewResponseDTO();
+        overview.setTotalRevenue(totalRevenue != null ? totalRevenue.doubleValue() : 0.0);
+        overview.setRevenueChange(formatChange(totalRevenue, prevRevenue));
+        overview.setNewOrders((int) newOrders);
+        overview.setNewOrdersChange(formatChangeLong(newOrders, prevOrders));
+        overview.setProductsCount((int) totalProducts);
+        // Products change is not critical to compute here — set to neutral
+        overview.setProductsChange("0");
+        // Views tracking not implemented yet — set to 0
+        overview.setViews(0);
+        overview.setViewsChange("0%");
+
+        return ResponseEntity.ok(ApiResponse.success(overview));
+    }
+
+    /** Full analytics dashboard (used by seller analytics page) */
+    @GetMapping("/analytics/dashboard")
+    public ResponseEntity<ApiResponse<SellerAnalyticsDashboardDTO>> getAnalyticsDashboard(
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestParam(required = false, defaultValue = "30days") String period) {
+
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.status(401)
+                .body(ApiResponse.error("User not authenticated"));
+        }
+
+        SellerAnalyticsDashboardDTO dashboard = sellerAnalyticsService.getDashboard(userId, period);
+        return ResponseEntity.ok(ApiResponse.success(dashboard));
+    }
+
+    /** Overview alias — same as /dashboard but used by some frontend paths */
+    @GetMapping("/overview")
+    public ResponseEntity<ApiResponse<SellerOverviewResponseDTO>> getSellerOverview(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return getOverview(userId);
+    }
+
+    // ---- helpers ----
+    private String formatChange(BigDecimal current, BigDecimal previous) {
+        double cur = current != null ? current.doubleValue() : 0.0;
+        double prev = previous != null ? previous.doubleValue() : 0.0;
+        if (prev <= 0) return cur > 0 ? "+100%" : "0%";
+        double change = ((cur - prev) / prev) * 100;
+        return String.format("%+.1f%%", change);
+    }
+
+    private String formatChangeLong(long current, long previous) {
+        if (previous <= 0) return current > 0 ? "+100%" : "0%";
+        double change = ((double)(current - previous) / previous) * 100;
+        return String.format("%+.1f%%", change);
     }
 
     @PostMapping("/create")

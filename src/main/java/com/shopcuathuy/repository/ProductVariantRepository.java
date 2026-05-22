@@ -3,15 +3,9 @@ package com.shopcuathuy.repository;
 import com.shopcuathuy.entity.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 
 @Repository
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, String> {
-    void deleteByProductId(String productId);
+    List<ProductVariant> findByProductId(String productId);
 }
-
-
-
-
-
-
-

@@ -38,19 +38,34 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/h2-console/**").permitAll() // Allow root and H2 Console
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Allow health checks
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/products/**",
-                    "/api/categories/**",
                     "/api/public/**",
                     "/api/home/**",
-                    "/api/promotions/**",
-                    "/api/cart/**").permitAll()
+                    "/api/promotions/**").permitAll()
+                // Payment gateway callbacks (called by VNPay/MoMo/ZaloPay, no auth header)
+                .requestMatchers("/api/payment/callback", "/api/payment/vnpay/callback").permitAll()
+                // Payment method list & shipping price calc are public (pre-checkout UI)
+                .requestMatchers(HttpMethod.GET, "/api/payment/methods").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/shipping/methods", "/api/shipping/calculate").permitAll()
+                // Public banner list
+                .requestMatchers(HttpMethod.GET, "/api/banners").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                 .requestMatchers("/api/upload/image/**").permitAll() // Allow public access to image proxy
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Cart and remaining payment/shipping require auth
+                .requestMatchers("/api/cart/**").authenticated()
+                .requestMatchers("/api/payment/**").authenticated()
+                .requestMatchers("/api/shipping/**").authenticated()
+                // Admin constraints for categories
+                .requestMatchers(HttpMethod.POST, "/api/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/categories/**").hasRole("ADMIN")
                 // Allow authenticated users to create seller profile (before they have SELLER role)
                 .requestMatchers("/api/seller/create").authenticated()
                 // Allow authenticated users to view their own seller profile
@@ -59,12 +74,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/shipper/register", "/api/shipper/status").authenticated()
                 .requestMatchers("/api/upload/**").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Shipper endpoints (verification will be checked in controller)
-                .requestMatchers("/api/shipments/my-shipments", "/api/shipments/{id}/status").hasAnyRole("SHIPPER", "ADMIN")
-                // All other seller endpoints require SELLER or ADMIN role (verification will be checked in controller)
+                // Shipper endpoints
+                .requestMatchers("/api/shipper/**").hasAnyRole("SHIPPER", "ADMIN")
+                // All other seller endpoints require SELLER or ADMIN role
                 .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "ADMIN")
                 .anyRequest().authenticated()
             )
+            .headers(headers -> headers.frameOptions(frame -> frame.disable())) // Required for H2 Console
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

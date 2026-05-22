@@ -67,9 +67,11 @@ public class ProductController {
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Double minRating,
-            @RequestParam(required = false) String subcategory) {
+            @RequestParam(required = false) String subcategory,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction) {
         ProductPageResponseDTO result = productService.getProductsByCategorySlug(
-            slug, page, size, minPrice, maxPrice, minRating, subcategory);
+            slug, page, size, minPrice, maxPrice, minRating, subcategory, sortBy, direction);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -85,80 +87,38 @@ public class ProductController {
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction) {
         
-        ProductPageResponseDTO result = productService.searchProducts(keyword, page, size);
-        
-        // Apply additional filters if provided
-        if (categoryId != null || minPrice != null || maxPrice != null || minRating != null) {
-            List<ProductResponseDTO> filtered = result.content.stream()
-                .filter(p -> {
-                    if (categoryId != null && !p.categoryId.equals(categoryId)) return false;
-                    if (minPrice != null && (p.price == null || p.price < minPrice)) return false;
-                    if (maxPrice != null && (p.price == null || p.price > maxPrice)) return false;
-                    if (minRating != null && (p.rating == null || p.rating < minRating)) return false;
-                    return true;
-                })
-                .collect(Collectors.toList());
-            
-            // Apply sorting
-            Comparator<ProductResponseDTO> comparator = getComparator(sortBy, direction);
-            filtered.sort(comparator);
-            
-            // Re-apply pagination after filtering
-            int start = page * size;
-            int end = Math.min(start + size, filtered.size());
-            List<ProductResponseDTO> paginated = start < filtered.size() 
-                ? filtered.subList(start, end)
-                : new ArrayList<>();
-            
-            result = new ProductPageResponseDTO(
-                paginated,
-                filtered.size(),
-                (int) Math.ceil((double) filtered.size() / size),
-                size,
-                page
-            );
-        } else {
-            // Apply sorting if no filters
-            Comparator<ProductResponseDTO> comparator = getComparator(sortBy, direction);
-            result.content.sort(comparator);
-        }
+        ProductPageResponseDTO result = productService.searchProducts(
+            keyword, page, size, categoryId, minPrice, maxPrice, minRating, sortBy, direction
+        );
         
         return ResponseEntity.ok(ApiResponse.success(result));
     }
-    
-    private Comparator<ProductResponseDTO> getComparator(String sortBy, String direction) {
-        Comparator<ProductResponseDTO> comparator;
-        switch (sortBy.toLowerCase()) {
-            case "price":
-                comparator = Comparator.comparing(p -> p.price != null ? p.price : 0.0);
-                break;
-            case "rating":
-                comparator = Comparator.comparing(p -> p.rating != null ? p.rating : 0.0);
-                break;
-            case "sold":
-                comparator = Comparator.comparing(p -> p.totalSold != null ? p.totalSold : 0);
-                break;
-            case "name":
-                comparator = Comparator.comparing(p -> p.name != null ? p.name : "");
-                break;
-            default:
-                comparator = Comparator.comparing(p -> p.createdAt != null ? p.createdAt : Instant.MIN);
-        }
-        
-        return "ASC".equalsIgnoreCase(direction) ? comparator : comparator.reversed();
-    }
+
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProductResponseDTO>> updateProduct(
             @PathVariable String id,
-            @RequestBody UpdateProductRequestDTO request) {
-        ProductResponseDTO updated = productService.updateProduct(id, request);
+            @RequestBody UpdateProductRequestDTO request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401).body(ApiResponse.error("User not authenticated"));
+        }
+        
+        ProductResponseDTO updated = productService.updateProduct(id, request, userId);
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
-        productService.deleteProduct(id);
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401).body(ApiResponse.error("User not authenticated"));
+        }
+        
+        productService.deleteProduct(id, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

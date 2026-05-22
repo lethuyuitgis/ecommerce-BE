@@ -12,6 +12,7 @@ public class OrderItemResponseDTO {
     public Double variantPrice;
     public Double totalPrice;
     public String productImage;
+    public String variantImage;
 }
 
 

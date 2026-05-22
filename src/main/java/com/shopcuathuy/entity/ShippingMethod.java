@@ -42,5 +42,17 @@ public class ShippingMethod extends BaseEntity {
     
     @Column(name = "max_delivery_days")
     private Integer maxDeliveryDays;
+
+    @Column(name = "base_fee", precision = 15, scale = 2)
+    private BigDecimal baseFee = BigDecimal.valueOf(30000);
+
+    @Column(name = "fee_per_kg", precision = 15, scale = 2)
+    private BigDecimal feePerKg = BigDecimal.valueOf(5000);
+
+    @Column(name = "fee_per_km", precision = 15, scale = 2)
+    private BigDecimal feePerKm = BigDecimal.valueOf(1000);
+
+    @Column(name = "display_order")
+    private Integer displayOrder = 0;
 }
 

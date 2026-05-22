@@ -42,5 +42,8 @@ public class PaymentMethod extends BaseEntity {
     
     @Column(name = "fee_fixed", precision = 15, scale = 2)
     private BigDecimal feeFixed = BigDecimal.ZERO;
+
+    @Column(name = "display_order")
+    private Integer displayOrder = 0;
 }
 

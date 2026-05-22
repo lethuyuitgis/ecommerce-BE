@@ -74,6 +74,6 @@ public class Voucher extends BaseEntity {
     }
     
     public enum VoucherStatus {
-        ACTIVE, INACTIVE, EXPIRED
+        ACTIVE, INACTIVE, EXPIRED, SCHEDULED
     }
 }

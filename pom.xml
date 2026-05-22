@@ -23,7 +23,7 @@
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jwt.version>0.12.3</jwt.version>
         <minio.version>8.5.7</minio.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.32</lombok.version>
     </properties>
     
     <dependencies>
@@ -69,12 +69,19 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         
-        <!-- Database -->
+        <!-- Database (Switched to H2 for simplicity) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!--
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+        -->
         
         <!-- JWT -->
         <dependency>
@@ -147,6 +154,7 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
@@ -155,6 +163,7 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-mysql</artifactId>
         </dependency>
+        -->
     </dependencies>
     
     <build>

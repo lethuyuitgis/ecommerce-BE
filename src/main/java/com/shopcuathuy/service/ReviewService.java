@@ -1,6 +1,6 @@
 package com.shopcuathuy.service;
 
-import com.shopcuathuy.admin.dto.PageResponse;
+import com.shopcuathuy.dto.admin.PageResponse;
 import com.shopcuathuy.dto.ReviewDTO;
 import com.shopcuathuy.entity.Product;
 import com.shopcuathuy.entity.ProductReview;
@@ -8,8 +8,13 @@ import com.shopcuathuy.entity.ReviewImage;
 import com.shopcuathuy.entity.User;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.ProductRepository;
-import com.shopcuathuy.repository.ProductReviewRepository;
 import com.shopcuathuy.repository.UserRepository;
+import com.shopcuathuy.repository.OrderItemRepository;
+import com.shopcuathuy.repository.ProductReviewRepository;
+import com.shopcuathuy.entity.OrderItem;
+import com.shopcuathuy.entity.Seller;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,14 +39,20 @@ public class ReviewService {
     private final ProductReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final NotificationService notificationService;
 
     @Autowired
     public ReviewService(ProductReviewRepository reviewRepository,
                         ProductRepository productRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        OrderItemRepository orderItemRepository,
+                        NotificationService notificationService) {
         this.reviewRepository = reviewRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.notificationService = notificationService;
     }
 
     public PageResponse<ReviewDTO> getProductReviews(String productId, int page, int size) {
@@ -90,20 +101,32 @@ public class ReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found")) :
             null;
 
+        // Verify purchase if orderItemId is provided or check existing purchase
+        boolean hasPurchased = orderItemRepository.existsByProductIdAndCustomerId(productId, userId);
+        if (!hasPurchased && orderItemId == null) {
+            throw new IllegalStateException("You must purchase the product before reviewing it.");
+        }
+
         ProductReview review = new ProductReview();
         review.setId(UUID.randomUUID().toString());
         review.setProduct(product);
-        review.setUser(user != null ? user : null);
+        review.setUser(user);
         review.setRating(rating);
         review.setTitle(title);
         review.setComment(comment);
         review.setHelpfulCount(0);
-        review.setStatus(ProductReview.ReviewStatus.PENDING); // Will be approved by admin
+        
+        if (orderItemId != null) {
+            orderItemRepository.findById(orderItemId).ifPresent(review::setOrderItem);
+        }
 
-        // Save review first
+        // Auto-approve if it's a verified purchase
+        review.setStatus(hasPurchased ? ProductReview.ReviewStatus.APPROVED : ProductReview.ReviewStatus.PENDING);
+
+        // Save review first to allow image associations
         review = reviewRepository.save(review);
 
-        // Handle images - create ReviewImage entities
+        // Handle images
         List<String> imageUrls = extractFileUrls(images, "review-images");
         for (String imageUrl : imageUrls) {
             ReviewImage reviewImage = new ReviewImage();
@@ -113,11 +136,41 @@ public class ReviewService {
             review.getReviewImages().add(reviewImage);
         }
 
-        // Note: Videos are not stored in ProductReview entity currently
-        // You may need to add a ReviewVideo entity if needed
-
         review = reviewRepository.save(review);
+        
+        // If approved, update product rating
+        if (review.getStatus() == ProductReview.ReviewStatus.APPROVED) {
+            updateProductRating(product);
+            
+            // Notify seller about new review
+            Seller seller = product.getSeller();
+            if (seller != null && seller.getUser() != null) {
+                notificationService.createAndDispatch(
+                    seller.getUser(),
+                    com.shopcuathuy.entity.Notification.NotificationType.REVIEW_NEW,
+                    "Đánh giá mới cho " + product.getName(),
+                    user.getFullName() + " đã đánh giá " + rating + " sao cho sản phẩm của bạn: " + comment,
+                    "/products/" + productId,
+                    productId,
+                    null
+                );
+            }
+        }
+
         return toDTO(review);
+    }
+
+    private void updateProductRating(Product product) {
+        List<ProductReview> approvedReviews = reviewRepository.findByProductIdAndStatus(product.getId(), ProductReview.ReviewStatus.APPROVED);
+        if (approvedReviews.isEmpty()) {
+            product.setRating(BigDecimal.ZERO);
+            product.setTotalReviews(0);
+        } else {
+            double avg = approvedReviews.stream().mapToInt(ProductReview::getRating).average().orElse(0.0);
+            product.setRating(BigDecimal.valueOf(avg).setScale(1, RoundingMode.HALF_UP));
+            product.setTotalReviews(approvedReviews.size());
+        }
+        productRepository.save(product);
     }
 
     @Transactional
@@ -156,6 +209,7 @@ public class ReviewService {
         dto.setRating(review.getRating());
         dto.setTitle(review.getTitle());
         dto.setComment(review.getComment());
+        dto.setVerifiedPurchase(review.getOrderItem() != null);
         
         // Extract images from ReviewImage entities
         List<String> imageUrls = review.getReviewImages() != null ?

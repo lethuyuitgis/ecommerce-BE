@@ -16,6 +16,7 @@ public class ReviewDTO {
     private List<String> videos;
     private Integer helpfulCount;
     private LocalDateTime createdAt;
+    private boolean verifiedPurchase;
 
     public String getId() {
         return id;
@@ -111,6 +112,14 @@ public class ReviewDTO {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public boolean isVerifiedPurchase() {
+        return verifiedPurchase;
+    }
+
+    public void setVerifiedPurchase(boolean verifiedPurchase) {
+        this.verifiedPurchase = verifiedPurchase;
     }
 }
 

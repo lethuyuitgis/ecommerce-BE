@@ -1,6 +1,6 @@
 package com.shopcuathuy.controller;
 
-import com.shopcuathuy.admin.dto.PageResponse;
+import com.shopcuathuy.dto.admin.PageResponse;
 import com.shopcuathuy.api.ApiResponse;
 import com.shopcuathuy.dto.ReviewDTO;
 import com.shopcuathuy.dto.request.CreateReviewRequestDTO;
@@ -15,7 +15,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/reviews")
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class ReviewController {
 
     private final ReviewService reviewService;

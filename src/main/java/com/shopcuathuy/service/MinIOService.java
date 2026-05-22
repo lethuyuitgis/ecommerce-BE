@@ -4,8 +4,12 @@ import com.shopcuathuy.config.MinIOConfig;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.GetObjectArgs;
+import io.minio.ListObjectsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.BucketExistsArgs;
+import io.minio.RemoveObjectArgs;
+import io.minio.Result;
+import io.minio.messages.Item;
 import io.minio.errors.MinioException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -99,6 +105,36 @@ public class MinIOService {
             );
         } catch (MinioException e) {
             throw new Exception("Failed to get file from MinIO: " + e.getMessage(), e);
+        }
+    }
+
+    public List<Item> listObjects(String prefix) throws Exception {
+        try {
+            List<Item> items = new ArrayList<>();
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                    .bucket(minIOConfig.getBucketName())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build());
+            for (Result<Item> r : results) {
+                items.add(r.get());
+            }
+            return items;
+        } catch (MinioException e) {
+            throw new Exception("Failed to list objects in MinIO: " + e.getMessage(), e);
+        }
+    }
+
+    public void removeObject(String objectName) throws Exception {
+        try {
+            minioClient.removeObject(
+                RemoveObjectArgs.builder()
+                    .bucket(minIOConfig.getBucketName())
+                    .object(objectName)
+                    .build());
+        } catch (MinioException e) {
+            throw new Exception("Failed to remove object from MinIO: " + e.getMessage(), e);
         }
     }
 }

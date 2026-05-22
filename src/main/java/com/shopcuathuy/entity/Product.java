@@ -74,6 +74,24 @@ public class Product extends BaseEntity {
     
     @Column(name = "is_featured")
     private Boolean isFeatured = false;
+
+    @Column(name = "flash_sale_enabled")
+    private Boolean flashSaleEnabled = false;
+
+    @Column(name = "flash_sale_price", precision = 15, scale = 2)
+    private BigDecimal flashSalePrice;
+
+    @Column(name = "flash_sale_stock")
+    private Integer flashSaleStock;
+
+    @Column(name = "flash_sale_sold")
+    private Integer flashSaleSold = 0;
+
+    @Column(name = "flash_sale_start")
+    private java.time.LocalDateTime flashSaleStart;
+
+    @Column(name = "flash_sale_end")
+    private java.time.LocalDateTime flashSaleEnd;
     
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
@@ -87,7 +105,7 @@ public class Product extends BaseEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     private List<CartItem> cartItems = new ArrayList<>();
     
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "product")
     private List<OrderItem> orderItems = new ArrayList<>();
     
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)

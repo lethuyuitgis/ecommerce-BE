@@ -32,6 +32,7 @@ public class ProductResponseDTO {
     public List<String> images;
     public String primaryImage;
     public Map<String, Object> variants;
+    public List<ProductVariantResponseDTO> productVariantDtos;
     public Instant createdAt;
 }
 

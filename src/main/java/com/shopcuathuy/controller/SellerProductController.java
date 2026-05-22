@@ -561,8 +561,10 @@ public class SellerProductController {
             checkSellerVerification(userId);
         }
 
-        productRepository.delete(product);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        // Soft delete to preserve order history
+        product.setStatus(Product.ProductStatus.DISCONTINUED);
+        productRepository.save(product);
+        return ResponseEntity.ok(ApiResponse.success("Sản phẩm đã được ngừng kinh doanh", null));
     }
 
     @PostMapping("/{id}/featured")
@@ -628,29 +630,27 @@ public class SellerProductController {
 
         boolean enabled = request.enabled != null ? request.enabled : true;
         
-        // Note: Product entity doesn't have flash sale fields yet
-        // For now, we'll use comparePrice to store original price when enabling flash sale
-        // and set price to flashPrice. This is a temporary solution.
-        // In production, you should add flash sale fields to Product entity or create a separate FlashSale entity.
-        
         if (enabled) {
             if (request.flashPrice == null || request.flashPrice <= 0) {
                 return ResponseEntity.badRequest()
                     .body(ApiResponse.error("flashPrice is required when enabling flash sale"));
             }
             
-            // Store original price in comparePrice if not already set
-            if (product.getComparePrice() == null) {
-                product.setComparePrice(product.getPrice());
+            product.setFlashSaleEnabled(true);
+            product.setFlashSalePrice(BigDecimal.valueOf(request.flashPrice));
+            
+            // Set default timeframe if not already set (e.g. 24 hours)
+            if (product.getFlashSaleStart() == null) {
+                product.setFlashSaleStart(java.time.LocalDateTime.now());
+                product.setFlashSaleEnd(java.time.LocalDateTime.now().plusDays(1));
             }
             
-            // Set flash sale price
-            product.setPrice(BigDecimal.valueOf(request.flashPrice));
-        } else {
-            // Restore original price from comparePrice if available
-            if (product.getComparePrice() != null && product.getComparePrice().compareTo(product.getPrice()) > 0) {
-                product.setPrice(product.getComparePrice());
+            // Set initial flash sale stock if not set
+            if (product.getFlashSaleStock() == null || product.getFlashSaleStock() == 0) {
+                product.setFlashSaleStock(Math.min(10, product.getQuantity())); // Default to 10 or current stock
             }
+        } else {
+            product.setFlashSaleEnabled(false);
         }
 
         product = productRepository.save(product);

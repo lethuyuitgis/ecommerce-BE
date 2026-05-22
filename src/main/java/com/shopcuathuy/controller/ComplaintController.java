@@ -1,8 +1,8 @@
 package com.shopcuathuy.controller;
 
-import com.shopcuathuy.admin.AdminService;
-import com.shopcuathuy.admin.dto.AdminComplaintDTO;
-import com.shopcuathuy.admin.dto.CreateComplaintRequest;
+import com.shopcuathuy.service.AdminService;
+import com.shopcuathuy.dto.admin.AdminComplaintDTO;
+import com.shopcuathuy.dto.admin.CreateComplaintRequest;
 import com.shopcuathuy.api.ApiResponse;
 import com.shopcuathuy.dto.request.CreateComplaintMessageRequestDTO;
 import com.shopcuathuy.dto.request.CreateComplaintRequestDTO;
@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/complaints")
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class ComplaintController {
 
     private final AdminService adminService;

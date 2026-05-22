@@ -14,6 +14,8 @@ public class CategoryResponseDTO {
     public Boolean isActive;
     public List<CategoryResponseDTO> children;
     public List<String> subcategories;
+    public Integer productCount;
+    public String fullPath;
 }
 
 

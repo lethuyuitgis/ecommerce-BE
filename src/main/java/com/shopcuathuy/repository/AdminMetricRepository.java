@@ -7,5 +7,3 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface AdminMetricRepository extends JpaRepository<AdminMetric, String> {
 }
-
-

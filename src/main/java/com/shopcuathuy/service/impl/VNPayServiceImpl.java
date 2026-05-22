@@ -82,20 +82,26 @@ public class VNPayServiceImpl implements VNPayService {
 
     @Override
     public Map<String, String> verifyPayment(Map<String, String> vnpParams) {
-        String vnp_SecureHash = vnpParams.remove("vnp_SecureHash");
-        vnpParams.remove("vnp_SecureHashType"); // Remove but not used
+        String vnp_SecureHash = vnpParams.get("vnp_SecureHash");
         
-        List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
+        // Remove hash params from data to be verified
+        Map<String, String> hashParams = new HashMap<>(vnpParams);
+        hashParams.remove("vnp_SecureHash");
+        hashParams.remove("vnp_SecureHashType");
+        
+        List<String> fieldNames = new ArrayList<>(hashParams.keySet());
         Collections.sort(fieldNames);
         StringBuilder hashData = new StringBuilder();
         Iterator<String> itr = fieldNames.iterator();
         while (itr.hasNext()) {
             String fieldName = itr.next();
-            String fieldValue = vnpParams.get(fieldName);
+            String fieldValue = hashParams.get(fieldName);
             if ((fieldValue != null) && (fieldValue.length() > 0)) {
                 hashData.append(fieldName);
                 hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+                // IMPORTANT: In VNPay 2.1.0 verification, we DO NOT re-encode the values
+                // because the server (Spring) has already decoded them.
+                hashData.append(fieldValue);
                 if (itr.hasNext()) {
                     hashData.append('&');
                 }
@@ -103,7 +109,7 @@ public class VNPayServiceImpl implements VNPayService {
         }
         
         String calculatedHash = hmacSHA512(hashSecret, hashData.toString());
-        boolean isValid = calculatedHash.equals(vnp_SecureHash);
+        boolean isValid = calculatedHash != null && calculatedHash.equalsIgnoreCase(vnp_SecureHash);
         
         Map<String, String> result = new HashMap<>();
         result.put("isValid", String.valueOf(isValid));

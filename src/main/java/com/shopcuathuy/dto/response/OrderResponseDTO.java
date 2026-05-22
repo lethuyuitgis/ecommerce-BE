@@ -22,6 +22,13 @@ public class OrderResponseDTO {
     public String paymentMethod;
     public String notes;
     public String customerNotes;
+    public String recipientName;
+    public String recipientPhone;
+    public String recipientEmail;
+    public String recipientAddress;
+    public String recipientProvince;
+    public String recipientDistrict;
+    public String recipientWard;
     public Instant createdAt;
     public List<OrderItemResponseDTO> items;
 }

@@ -2,6 +2,7 @@ package com.shopcuathuy.controller;
 
 import com.shopcuathuy.api.ApiResponse;
 import com.shopcuathuy.service.MinIOService;
+import io.minio.messages.Item;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -13,13 +14,16 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/upload")
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class UploadController {
 
     private final MinIOService minIOService;
@@ -196,6 +200,115 @@ public class UploadController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                 .body(ApiResponse.error("Failed to upload file: " + e.getMessage()));
+        }
+    }
+
+    /* ===================== Excel files ===================== */
+
+    private static final String EXCEL_FOLDER = "excel";
+
+    @PostMapping("/excel")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> uploadExcel(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("File is required"));
+            }
+            String name = file.getOriginalFilename();
+            if (name == null || !(name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls"))) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("File must be .xlsx or .xls"));
+            }
+            long maxSize = 50 * 1024 * 1024;
+            if (file.getSize() > maxSize) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("File size must be less than 50MB"));
+            }
+            String fileUrl = minIOService.uploadFile(file, EXCEL_FOLDER);
+            String objectName = fileUrl.replace("/api/upload/image/", "");
+            String storedFileName = objectName.startsWith(EXCEL_FOLDER + "/")
+                ? objectName.substring(EXCEL_FOLDER.length() + 1)
+                : objectName;
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("fileName", storedFileName);
+            body.put("originalName", file.getOriginalFilename());
+            body.put("filePath", objectName);
+            body.put("fileUrl", fileUrl);
+            body.put("size", file.getSize());
+            body.put("mimeType", file.getContentType());
+            body.put("uploadedAt", java.time.Instant.now());
+            body.put("userId", userId);
+            return ResponseEntity.ok(ApiResponse.success(body));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to upload excel: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/excel/list")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> listExcel(
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        try {
+            List<Item> all = minIOService.listObjects(EXCEL_FOLDER + "/");
+            List<Map<String, Object>> files = new ArrayList<>();
+            for (Item item : all) {
+                String objectName = item.objectName();
+                String fileName = objectName.startsWith(EXCEL_FOLDER + "/")
+                    ? objectName.substring(EXCEL_FOLDER.length() + 1)
+                    : objectName;
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("fileName", fileName);
+                f.put("fileUrl", "/api/upload/image/" + objectName);
+                f.put("size", item.size());
+                java.time.Instant ts = item.lastModified() != null
+                    ? item.lastModified().toInstant() : java.time.Instant.now();
+                f.put("uploadedAt", ts);
+                f.put("modifiedAt", ts);
+                files.add(f);
+            }
+            int total = files.size();
+            List<Map<String, Object>> paged = files.stream()
+                .skip(offset).limit(limit).toList();
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("files", paged);
+            body.put("total", total);
+            body.put("limit", limit);
+            body.put("offset", offset);
+            return ResponseEntity.ok(ApiResponse.success(body));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to list excel files: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/excel/{fileName}")
+    public ResponseEntity<byte[]> downloadExcel(@PathVariable String fileName) {
+        try {
+            String objectName = EXCEL_FOLDER + "/" + fileName;
+            try (InputStream in = minIOService.getFile(objectName)) {
+                ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                byte[] chunk = new byte[8192];
+                int n;
+                while ((n = in.read(chunk)) != -1) buf.write(chunk, 0, n);
+                byte[] data = buf.toByteArray();
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+                headers.setContentDispositionFormData("attachment", fileName);
+                headers.setContentLength(data.length);
+                return ResponseEntity.ok().headers(headers).body(data);
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(404).build();
+        }
+    }
+
+    @DeleteMapping("/excel/{fileName}")
+    public ResponseEntity<ApiResponse<String>> deleteExcel(@PathVariable String fileName) {
+        try {
+            minIOService.removeObject(EXCEL_FOLDER + "/" + fileName);
+            return ResponseEntity.ok(ApiResponse.success("Deleted: " + fileName));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to delete: " + e.getMessage()));
         }
     }
 

@@ -12,6 +12,9 @@ import com.shopcuathuy.repository.ShippingMethodRepository;
 import com.shopcuathuy.repository.ShippingPartnerRepository;
 import com.shopcuathuy.repository.UserAddressRepository;
 import com.shopcuathuy.repository.UserRepository;
+import com.shopcuathuy.repository.OrderTimelineRepository;
+import com.shopcuathuy.entity.OrderTimeline;
+import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +36,8 @@ public class OrderDispatchService {
     private final ShippingPartnerRepository shippingPartnerRepository;
     private final UserRepository userRepository;
     private final UserAddressRepository userAddressRepository;
+    private final OrderTimelineRepository orderTimelineRepository;
+    private final ShippingService shippingService;
     private final Random random = new Random();
 
     @Autowired
@@ -42,13 +47,17 @@ public class OrderDispatchService {
             ShippingMethodRepository shippingMethodRepository,
             ShippingPartnerRepository shippingPartnerRepository,
             UserRepository userRepository,
-            UserAddressRepository userAddressRepository) {
+            UserAddressRepository userAddressRepository,
+            OrderTimelineRepository orderTimelineRepository,
+            ShippingService shippingService) {
         this.orderRepository = orderRepository;
         this.shipmentRepository = shipmentRepository;
         this.shippingMethodRepository = shippingMethodRepository;
         this.shippingPartnerRepository = shippingPartnerRepository;
         this.userRepository = userRepository;
         this.userAddressRepository = userAddressRepository;
+        this.orderTimelineRepository = orderTimelineRepository;
+        this.shippingService = shippingService;
     }
 
     /**
@@ -66,18 +75,19 @@ public class OrderDispatchService {
                 return;
             }
 
-            // Tạo shipment
+            // 1. Create shipment record
             Shipment shipment = createShipmentForOrder(order);
 
-            // Tự động điều phối cho shipper (chọn ngẫu nhiên một shipper đang hoạt động)
+            // 2. Set order to CONFIRMED and PENDING (awaiting pickup)
+            order.setShippingStatus(Order.ShippingStatus.PENDING);
+            order.setStatus(Order.OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+            addTimelineEntry(order, "CONFIRMED", "Đơn hàng đã được xác nhận và đang chờ shipper nhận hàng.", "system");
+
+            // 3. Attempt to assign a shipper (this will update status further if successful)
             assignToShipper(shipment);
 
-            // Cập nhật trạng thái đơn hàng
-            order.setStatus(Order.OrderStatus.CONFIRMED);
-            order.setShippingStatus(Order.ShippingStatus.PICKED_UP);
-            orderRepository.save(order);
-
-            log.info("Order {} dispatched successfully to shipper", orderId);
+            log.info("Order {} processed for dispatch", orderId);
         } catch (Exception e) {
             log.error("Error dispatching order {}: {}", orderId, e.getMessage(), e);
             // Không throw exception để không làm gián đoạn quá trình tạo đơn
@@ -101,24 +111,13 @@ public class OrderDispatchService {
         // Tạo tracking number
         shipment.setTrackingNumber(generateTrackingNumber(order));
 
-        // Lấy thông tin địa chỉ giao hàng từ customer (lấy địa chỉ mặc định)
-        User customer = order.getCustomer();
-        shipment.setRecipientName(customer.getFullName());
-        shipment.setRecipientPhone(customer.getPhone());
-        
-        // Lấy địa chỉ mặc định của customer
-        List<UserAddress> addresses = userAddressRepository.findByUserId(customer.getId());
-        UserAddress defaultAddress = addresses.stream()
-            .filter(UserAddress::getIsDefault)
-            .findFirst()
-            .orElse(addresses.isEmpty() ? null : addresses.get(0));
-        
-        if (defaultAddress != null) {
-            shipment.setRecipientAddress(defaultAddress.getStreet());
-            shipment.setRecipientProvince(defaultAddress.getProvince());
-            shipment.setRecipientDistrict(defaultAddress.getDistrict());
-            shipment.setRecipientWard(defaultAddress.getWard());
-        }
+        // Use Order snapshot information (Correct way)
+        shipment.setRecipientName(order.getRecipientName());
+        shipment.setRecipientPhone(order.getRecipientPhone());
+        shipment.setRecipientAddress(order.getRecipientAddress());
+        shipment.setRecipientProvince(order.getRecipientProvince());
+        shipment.setRecipientDistrict(order.getRecipientDistrict());
+        shipment.setRecipientWard(order.getRecipientWard());
 
         // Lấy địa chỉ lấy hàng từ seller
         if (order.getSeller() != null && order.getSeller().getUser() != null) {
@@ -138,7 +137,12 @@ public class OrderDispatchService {
         shipment.setStatus(Shipment.ShipmentStatus.READY_FOR_PICKUP);
         shipment.setExpectedDeliveryDate(LocalDate.now().plusDays(3)); // Dự kiến giao trong 3 ngày
 
-        return shipmentRepository.save(shipment);
+        Shipment saved = shipmentRepository.save(shipment);
+        
+        // Initial tracking
+        shippingService.addTrackingUpdate(saved.getId(), "READY_FOR_PICKUP", "Warehouse", "Đơn hàng đã sẵn sàng được lấy.");
+        
+        return saved;
     }
 
     /**
@@ -148,27 +152,28 @@ public class OrderDispatchService {
         // Tìm tất cả shipper đang hoạt động
         List<User> shippers = userRepository.findByUserType(User.UserType.SHIPPER);
         
-        // Lọc chỉ lấy shipper đang ACTIVE
+        // Lọc chỉ lấy shipper đang ACTIVE và được APPROVED
         List<User> activeShippers = shippers.stream()
-                .filter(shipper -> shipper.getStatus() == User.UserStatus.ACTIVE)
+                .filter(shipper -> (shipper.getStatus() == null || shipper.getStatus() == User.UserStatus.ACTIVE) && 
+                                   (shipper.getApprovalStatus() == User.ApprovalStatus.APPROVED))
                 .toList();
 
         if (activeShippers.isEmpty()) {
-            log.warn("No active shippers found, shipment {} will remain unassigned", shipment.getId());
+            log.warn("No approved shippers found, shipment {} will remain unassigned", shipment.getId());
             return;
         }
 
-        // Chọn ngẫu nhiên một shipper (có thể cải thiện logic sau: chọn shipper ít đơn nhất, gần nhất, v.v.)
+        // Chọn shipper (có thể cải thiện logic: shipper có ít đơn nhất)
         User selectedShipper = activeShippers.get(random.nextInt(activeShippers.size()));
 
-        // Tìm hoặc tạo ShippingPartner cho shipper này
-        ShippingPartner partner = findOrCreateShippingPartnerForShipper(selectedShipper);
-
-        shipment.setShippingPartner(partner);
+        shipment.setShipper(selectedShipper);
         shipment.setStatus(Shipment.ShipmentStatus.PICKED_UP);
         shipmentRepository.save(shipment);
 
-        log.info("Shipment {} assigned to shipper {}", shipment.getId(), selectedShipper.getId());
+        // Add to timeline for order
+        addTimelineEntry(shipment.getOrder(), "PICKED_UP", "Đơn hàng đã được shipper " + selectedShipper.getFullName() + " nhận lấy hàng.", "system");
+
+        log.info("Shipment {} assigned to shipper user {}", shipment.getId(), selectedShipper.getId());
     }
 
     /**
@@ -197,6 +202,16 @@ public class OrderDispatchService {
      */
     private String generateTrackingNumber(Order order) {
         return "TRK" + order.getOrderNumber().substring(3) + System.currentTimeMillis() % 10000;
+    }
+
+    private void addTimelineEntry(Order order, String status, String note, String createdBy) {
+        OrderTimeline timeline = new OrderTimeline();
+        timeline.setId(UUID.randomUUID().toString());
+        timeline.setOrder(order);
+        timeline.setStatus(status);
+        timeline.setNote(note);
+        timeline.setCreatedBy(createdBy);
+        orderTimelineRepository.save(timeline);
     }
 }
 

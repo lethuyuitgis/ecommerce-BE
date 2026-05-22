@@ -1,6 +1,6 @@
 package com.shopcuathuy.service;
 
-import com.shopcuathuy.admin.dto.RevenuePointDTO;
+import com.shopcuathuy.dto.admin.RevenuePointDTO;
 import com.shopcuathuy.dto.SellerReportDTO;
 import com.shopcuathuy.entity.Order;
 import com.shopcuathuy.entity.Product;

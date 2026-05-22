@@ -54,10 +54,13 @@ public class ShippingController {
         ShippingMethod method = shippingMethodRepository.findById(request.methodId)
             .orElseThrow(() -> new ResourceNotFoundException("Shipping method not found"));
 
-        // Calculate shipping fee based on weight, distance, etc.
-        double baseFee = 30000.0; // Default base fee
-        double weightFee = request.weight != null ? request.weight * 5000 : 0;
-        double distanceFee = request.distance != null ? request.distance * 1000 : 0;
+        // Calculate shipping fee based on dynamic entity values
+        double baseFee = method.getBaseFee() != null ? method.getBaseFee().doubleValue() : 30000.0;
+        double feePerKg = method.getFeePerKg() != null ? method.getFeePerKg().doubleValue() : 5000.0;
+        double feePerKm = method.getFeePerKm() != null ? method.getFeePerKm().doubleValue() : 1000.0;
+
+        double weightFee = request.weight != null ? request.weight * feePerKg : 0;
+        double distanceFee = request.distance != null ? request.distance * feePerKm : 0;
         double totalFee = baseFee + weightFee + distanceFee;
 
         ShippingCalculationResponseDTO calculation = new ShippingCalculationResponseDTO();
@@ -190,10 +193,10 @@ public class ShippingController {
         dto.id = method.getId();
         dto.name = method.getName();
         dto.description = method.getDescription();
-        dto.baseFee = 30000.0; // Default, not stored in entity
+        dto.baseFee = method.getBaseFee() != null ? method.getBaseFee().doubleValue() : 30000.0;
         dto.estimatedDays = method.getMaxDeliveryDays() != null ? 
             method.getMaxDeliveryDays() : 5;
-        dto.displayOrder = 0; // Not stored in entity
+        dto.displayOrder = method.getDisplayOrder() != null ? method.getDisplayOrder() : 0;
         dto.isActive = method.getIsActive();
         return dto;
     }

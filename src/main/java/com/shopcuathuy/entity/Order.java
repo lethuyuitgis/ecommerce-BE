@@ -73,6 +73,28 @@ public class Order extends BaseEntity {
     
     @Column(name = "customer_notes", columnDefinition = "TEXT")
     private String customerNotes;
+
+    // Recipient snapshot for immutability
+    @Column(name = "recipient_name", length = 255)
+    private String recipientName;
+
+    @Column(name = "recipient_phone", length = 20)
+    private String recipientPhone;
+
+    @Column(name = "recipient_email", length = 255)
+    private String recipientEmail;
+
+    @Column(name = "recipient_address", columnDefinition = "TEXT")
+    private String recipientAddress;
+
+    @Column(name = "recipient_province", length = 100)
+    private String recipientProvince;
+
+    @Column(name = "recipient_district", length = 100)
+    private String recipientDistrict;
+
+    @Column(name = "recipient_ward", length = 100)
+    private String recipientWard;
     
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
@@ -87,15 +109,39 @@ public class Order extends BaseEntity {
     private List<OrderTimeline> timeline = new ArrayList<>();
     
     public enum OrderStatus {
-        PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, RETURNED
+        PENDING("Chờ xử lý"),
+        CONFIRMED("Đã xác nhận"),
+        SHIPPED("Đang giao hàng"),
+        DELIVERED("Đã giao hàng"),
+        CANCELLED("Đã hủy"),
+        RETURNED("Đã trả hàng");
+
+        private final String displayName;
+        OrderStatus(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
     }
     
     public enum PaymentStatus {
-        PENDING, PAID, FAILED, REFUNDED
+        PENDING("Chờ thanh toán"),
+        PAID("Đã thanh toán"),
+        FAILED("Thanh toán thất bại"),
+        REFUNDED("Đã hoàn tiền");
+
+        private final String displayName;
+        PaymentStatus(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
     }
     
     public enum ShippingStatus {
-        PENDING, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED
+        PENDING("Chờ lấy hàng"),
+        PICKED_UP("Đã lấy hàng"),
+        IN_TRANSIT("Đang vận chuyển"),
+        DELIVERED("Đã giao hàng"),
+        FAILED("Giao hàng thất bại");
+
+        private final String displayName;
+        ShippingStatus(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
     }
 }
 

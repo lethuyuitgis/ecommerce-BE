@@ -1,44 +1,29 @@
 package com.shopcuathuy.entity;
 
-import com.shopcuathuy.common.BaseEntity;
-import jakarta.persistence.Column;
-import java.math.BigDecimal;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "admin_metrics")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AdminMetric extends BaseEntity {
-
-    @Column(name = "total_products")
-    private Long totalProducts = 0L;
-
-    @Column(name = "total_orders")
-    private Long totalOrders = 0L;
-
-    @Column(name = "total_customers")
-    private Long totalCustomers = 0L;
-
-    @Column(name = "total_revenue", precision = 18, scale = 2)
-    private BigDecimal totalRevenue = BigDecimal.ZERO;
-
-    @Column(name = "request_count")
-    private Long requestCount = 0L;
-
-    @Column(name = "success_count")
-    private Long successCount = 0L;
-
-    @Column(name = "active_sellers")
-    private Long activeSellers = 0L;
-
-    @Column(name = "avg_response_ms")
-    private Long avgResponseMs = 0L;
+@Builder
+public class AdminMetric {
+    @Id
+    @Builder.Default
+    private String id = "default";
+    
+    private long requestCount;
+    private long successCount;
+    private Long avgResponseMs;
+    
+    @Builder.Default
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Builder.Default
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }
-

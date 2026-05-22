@@ -6,8 +6,18 @@ import com.shopcuathuy.dto.request.UpdateOrderStatusRequestDTO;
 import com.shopcuathuy.dto.response.OrderPageResponseDTO;
 import com.shopcuathuy.dto.response.OrderResponseDTO;
 import com.shopcuathuy.dto.response.PurchaseStatusResponseDTO;
+import com.shopcuathuy.entity.Order;
+import com.shopcuathuy.entity.OrderTimeline;
 import com.shopcuathuy.exception.ForbiddenException;
+import com.shopcuathuy.exception.ResourceNotFoundException;
+import com.shopcuathuy.repository.OrderRepository;
+import com.shopcuathuy.repository.OrderTimelineRepository;
 import com.shopcuathuy.service.OrderService;
+import java.time.ZoneId;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,10 +30,51 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderRepository orderRepository;
+    private final OrderTimelineRepository orderTimelineRepository;
 
     @Autowired
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService,
+                           OrderRepository orderRepository,
+                           OrderTimelineRepository orderTimelineRepository) {
         this.orderService = orderService;
+        this.orderRepository = orderRepository;
+        this.orderTimelineRepository = orderTimelineRepository;
+    }
+
+    @GetMapping("/{id}/timeline")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getOrderTimeline(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        Order order = orderRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(userRole);
+        boolean ownsAsCustomer = order.getCustomer() != null && order.getCustomer().getId().equals(userId);
+        boolean ownsAsSeller = order.getSeller() != null && order.getSeller().getUser() != null
+            && order.getSeller().getUser().getId().equals(userId);
+        if (!isAdmin && !ownsAsCustomer && !ownsAsSeller) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Access denied"));
+        }
+
+        List<Map<String, Object>> entries = orderTimelineRepository
+            .findByOrderIdOrderByCreatedAtDesc(id).stream()
+            .map(this::timelineToMap)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(entries));
+    }
+
+    private Map<String, Object> timelineToMap(OrderTimeline t) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", t.getId());
+        m.put("status", t.getStatus());
+        m.put("note", t.getNote());
+        m.put("createdBy", t.getCreatedBy());
+        m.put("createdAt", t.getCreatedAt() != null
+            ? t.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant() : null);
+        return m;
     }
 
     @GetMapping
@@ -101,14 +152,20 @@ public class OrderController {
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<OrderResponseDTO>> updateOrderStatus(
             @PathVariable String id,
-            @RequestBody UpdateOrderStatusRequestDTO request) {
+            @RequestBody UpdateOrderStatusRequestDTO request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        
+        if (userId == null || userId.isEmpty()) {
+            return ResponseEntity.status(401).body(ApiResponse.error("User not authenticated"));
+        }
         
         try {
-            OrderResponseDTO order = orderService.updateOrderStatus(id, request);
+            OrderResponseDTO order = orderService.updateOrderStatus(id, request, userId);
             return ResponseEntity.ok(ApiResponse.success(order));
+        } catch (ForbiddenException e) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Access denied"));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(400)
-                .body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(400).body(ApiResponse.error(e.getMessage()));
         }
     }
 }

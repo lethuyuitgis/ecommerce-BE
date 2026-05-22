@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Repository;
 public interface OrderRepository extends JpaRepository<Order, String> {
     Page<Order> findByCustomerId(String customerId, Pageable pageable);
     Page<Order> findBySellerId(String sellerId, Pageable pageable);
+    Page<Order> findBySellerIdAndStatus(String sellerId, Order.OrderStatus status, Pageable pageable);
     Page<Order> findByOrderNumber(String orderNumber, Pageable pageable);
     Page<Order> findByCustomerIdAndStatus(String customerId, Order.OrderStatus status, Pageable pageable);
     @Query("SELECT o.customer, COUNT(o), COALESCE(SUM(o.finalTotal),0), MAX(o.createdAt) FROM Order o WHERE o.seller.id = :sellerId GROUP BY o.customer")
@@ -57,7 +59,12 @@ public interface OrderRepository extends JpaRepository<Order, String> {
 
     // Check if customer owns the order
     @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.id = :orderId AND o.customer.id = :customerId")
-    boolean existsByIdAndCustomerId(String orderId, String customerId);
+    boolean existsByIdAndCustomerId(@Param("orderId") String orderId, @Param("customerId") String customerId);
 
+    @Query("SELECT DISTINCT o FROM Order o JOIN o.shipments s WHERE s.shipper.id = :shipperId")
+    Page<Order> findByShipperId(@Param("shipperId") String shipperId, Pageable pageable);
+
+    @Query("SELECT DISTINCT o FROM Order o JOIN o.shipments s WHERE s.shipper.id = :shipperId AND (:status IS NULL OR o.shippingStatus = :status)")
+    Page<Order> findByShipperIdAndShippingStatus(@Param("shipperId") String shipperId, @Param("status") Order.ShippingStatus status, Pageable pageable);
 }
 

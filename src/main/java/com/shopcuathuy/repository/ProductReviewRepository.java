@@ -10,5 +10,6 @@ import org.springframework.stereotype.Repository;
 public interface ProductReviewRepository extends JpaRepository<ProductReview, String> {
     Page<ProductReview> findByProductIdAndStatus(String productId, ProductReview.ReviewStatus status, Pageable pageable);
     Page<ProductReview> findByUserId(String userId, Pageable pageable);
+    java.util.List<ProductReview> findByProductIdAndStatus(String productId, ProductReview.ReviewStatus status);
 }
 

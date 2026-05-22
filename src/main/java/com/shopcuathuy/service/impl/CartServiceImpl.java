@@ -9,6 +9,7 @@ import com.shopcuathuy.entity.User;
 import com.shopcuathuy.exception.ResourceNotFoundException;
 import com.shopcuathuy.repository.CartItemRepository;
 import com.shopcuathuy.repository.ProductRepository;
+import com.shopcuathuy.repository.ProductVariantRepository;
 import com.shopcuathuy.repository.UserRepository;
 import com.shopcuathuy.service.CartService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,14 +27,17 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     @Autowired
     public CartServiceImpl(CartItemRepository cartItemRepository, 
                           ProductRepository productRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          ProductVariantRepository productVariantRepository) {
         this.cartItemRepository = cartItemRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.productVariantRepository = productVariantRepository;
     }
 
     @Override
@@ -53,32 +57,48 @@ public class CartServiceImpl implements CartService {
         Product product = productRepository.findById(request.productId)
             .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
+        com.shopcuathuy.entity.ProductVariant variant = null;
+        if (request.variantId != null && !request.variantId.isEmpty()) {
+            variant = productVariantRepository.findById(request.variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
+        }
+
         // Check if item already exists
         Optional<CartItem> existingItem;
-        if (request.variantId != null && !request.variantId.isEmpty()) {
+        if (variant != null) {
             existingItem = cartItemRepository.findByUserIdAndProductIdAndVariantId(userId, request.productId, request.variantId);
         } else {
             existingItem = cartItemRepository.findByUserIdAndProductId(userId, request.productId);
         }
 
         CartItem cartItem;
-        Integer quantity = request.quantity != null ? request.quantity : 1;
+        Integer quantityToAdd = request.quantity != null ? request.quantity : 1;
+        Integer newTotalQuantity;
         
         if (existingItem.isPresent()) {
             cartItem = existingItem.get();
-            cartItem.setQuantity(cartItem.getQuantity() + quantity);
+            newTotalQuantity = cartItem.getQuantity() + quantityToAdd;
         } else {
             cartItem = new CartItem();
             cartItem.setId(UUID.randomUUID().toString());
             cartItem.setUser(user);
             cartItem.setProduct(product);
-            if (request.variantId != null && !request.variantId.isEmpty()) {
-                // Note: Would need ProductVariantRepository to load variant
-                // For now, we'll skip variant assignment
-            }
-            cartItem.setQuantity(quantity);
+            cartItem.setVariant(variant);
+            newTotalQuantity = quantityToAdd;
         }
 
+        // Stock Validation
+        if (variant != null) {
+            if (variant.getVariantQuantity() < newTotalQuantity) {
+                throw new IllegalStateException("Số lượng trong kho không đủ (Còn " + variant.getVariantQuantity() + " sản phẩm)");
+            }
+        } else {
+            if (product.getQuantity() < newTotalQuantity) {
+                throw new IllegalStateException("Số lượng trong kho không đủ (Còn " + product.getQuantity() + " sản phẩm)");
+            }
+        }
+
+        cartItem.setQuantity(newTotalQuantity);
         cartItem = cartItemRepository.save(cartItem);
         return convertToDTO(cartItem);
     }
@@ -96,6 +116,17 @@ public class CartServiceImpl implements CartService {
         if (request.quantity == null || request.quantity <= 0) {
             cartItemRepository.delete(cartItem);
             return null;
+        }
+
+        // Stock Validation
+        if (cartItem.getVariant() != null) {
+            if (cartItem.getVariant().getVariantQuantity() < request.quantity) {
+                throw new IllegalStateException("Số lượng trong kho không đủ (Còn " + cartItem.getVariant().getVariantQuantity() + " sản phẩm)");
+            }
+        } else if (cartItem.getProduct() != null) {
+            if (cartItem.getProduct().getQuantity() < request.quantity) {
+                throw new IllegalStateException("Số lượng trong kho không đủ (Còn " + cartItem.getProduct().getQuantity() + " sản phẩm)");
+            }
         }
 
         cartItem.setQuantity(request.quantity);

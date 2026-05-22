@@ -13,7 +13,7 @@ public interface OrderService {
     PurchaseStatusResponseDTO checkPurchase(String productId, String userId);
     OrderResponseDTO createOrder(String userId, CreateOrderRequestDTO request);
     OrderResponseDTO cancelOrder(String id, String userId);
-    OrderResponseDTO updateOrderStatus(String id, UpdateOrderStatusRequestDTO request);
+    OrderResponseDTO updateOrderStatus(String id, UpdateOrderStatusRequestDTO request, String userId);
 }
 
 

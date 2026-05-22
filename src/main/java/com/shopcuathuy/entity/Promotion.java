@@ -62,7 +62,7 @@ public class Promotion extends BaseEntity {
     private List<PromotionItem> promotionItems = new ArrayList<>();
     
     public enum PromotionType {
-        PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y
+        PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y, FLASH_SALE, BUNDLE
     }
     
     public enum PromotionStatus {

@@ -34,6 +34,14 @@ public class Shipment extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shipping_partner_id", columnDefinition = "CHAR(36)")
     private ShippingPartner shippingPartner;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shipper_id", columnDefinition = "CHAR(36)")
+    private User shipper;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_hub_id", columnDefinition = "CHAR(36)")
+    private ShippingHub currentHub;
     
     @Column(name = "tracking_number", unique = true, length = 100)
     private String trackingNumber;
@@ -101,6 +109,17 @@ public class Shipment extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @Column(name = "delivery_proof_url", columnDefinition = "TEXT")
+    private String deliveryProof;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cod_status", length = 30)
+    private CodStatus codStatus = CodStatus.NOT_COLLECTED;
+
+    public enum CodStatus {
+        NOT_COLLECTED, COLLECTED, REMITTED
+    }
     
     @OneToMany(mappedBy = "shipment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TrackingUpdate> trackingUpdates = new ArrayList<>();

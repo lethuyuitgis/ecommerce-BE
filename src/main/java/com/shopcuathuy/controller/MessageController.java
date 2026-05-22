@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class MessageController {
 
     private final ConversationRepository conversationRepository;

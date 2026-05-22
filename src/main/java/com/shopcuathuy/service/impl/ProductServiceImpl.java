@@ -6,9 +6,11 @@ import com.shopcuathuy.dto.response.ProductPageResponseDTO;
 import com.shopcuathuy.dto.response.ProductResponseDTO;
 import com.shopcuathuy.entity.Product;
 import com.shopcuathuy.entity.ProductVariant;
+import com.shopcuathuy.entity.ProductImage;
+import com.shopcuathuy.entity.Seller;
 import com.shopcuathuy.exception.ResourceNotFoundException;
-import com.shopcuathuy.repository.OrderItemRepository;
-import com.shopcuathuy.repository.ProductRepository;
+import com.shopcuathuy.exception.ForbiddenException;
+import com.shopcuathuy.repository.*;
 import com.shopcuathuy.service.ProductService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,12 +34,24 @@ public class ProductServiceImpl implements ProductService {
     private static final Logger log = LoggerFactory.getLogger(ProductServiceImpl.class);
     private final ProductRepository productRepository;
     private final OrderItemRepository orderItemRepository;
+    private final CategoryRepository categoryRepository; // Added
+    private final SellerRepository sellerRepository; // Added
+    private final ProductImageRepository productImageRepository; // Added
+    private final ProductVariantRepository productVariantRepository; // Added
 
     @Autowired
     public ProductServiceImpl(ProductRepository productRepository,
-                              OrderItemRepository orderItemRepository) {
+                              OrderItemRepository orderItemRepository,
+                              CategoryRepository categoryRepository, // Added
+                              SellerRepository sellerRepository, // Added
+                              ProductImageRepository productImageRepository, // Added
+                              ProductVariantRepository productVariantRepository) { // Added
         this.productRepository = productRepository;
         this.orderItemRepository = orderItemRepository;
+        this.categoryRepository = categoryRepository; // Added
+        this.sellerRepository = sellerRepository; // Added
+        this.productImageRepository = productImageRepository; // Added
+        this.productVariantRepository = productVariantRepository; // Added
     }
 
     @Override
@@ -49,41 +63,27 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    public ProductPageResponseDTO searchProducts(String keyword, int page, int size) {
-        if (keyword == null || keyword.trim().isEmpty()) {
-            // If keyword is empty, return all active products
-            return getAllProducts(page, size, "createdAt", "DESC");
-        }
+    @Cacheable(
+        value = "products:search",
+        key = "'k=' + #keyword + ':p=' + #page + ':s=' + #size + ':c=' + #categoryId + ':min=' + #minPrice + ':max=' + #maxPrice + ':r=' + #minRating + ':sb=' + #sortBy + ':d=' + #direction",
+        unless = "#result == null || #result.content == null"
+    )
+    public ProductPageResponseDTO searchProducts(String keyword, int page, int size, 
+                                                String categoryId, Double minPrice, Double maxPrice, 
+                                                Double minRating, String sortBy, String direction) {
+        Sort sort = Sort.by("ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC, sortBy);
+        Pageable pageable = PageRequest.of(page, size, sort);
         
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        BigDecimal min = minPrice != null ? BigDecimal.valueOf(minPrice) : null;
+        BigDecimal max = maxPrice != null ? BigDecimal.valueOf(maxPrice) : null;
+        BigDecimal rating = minRating != null ? BigDecimal.valueOf(minRating) : null;
+        String searchKeyword = (keyword == null || keyword.trim().isEmpty()) ? null : keyword.trim();
+
+        Page<Product> products = productRepository.searchProductsWithFilters(
+            Product.ProductStatus.ACTIVE, searchKeyword, categoryId, min, max, rating, pageable
+        );
         
-        // Use advanced search that searches in name, description, SKU, category, seller
-        try {
-            Page<Product> products = productRepository.searchProducts(
-                Product.ProductStatus.ACTIVE, 
-                keyword.trim(), 
-                pageable
-            );
-            
-            log.info("Search for '{}' returned {} products", keyword, products.getTotalElements());
-            
-            Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-            return convertToPageResponseDTO(productPage);
-        } catch (Exception e) {
-            log.error("Error searching products with keyword '{}': {}", keyword, e.getMessage(), e);
-            // Fallback to simple name search
-            try {
-                Page<Product> products = productRepository.findByNameContainingIgnoreCase(keyword.trim(), pageable);
-                Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            } catch (Exception fallbackError) {
-                log.error("Fallback search also failed", fallbackError);
-                // Return empty result
-                Page<Product> emptyPage = Page.empty(pageable);
-                Page<ProductResponseDTO> productPage = emptyPage.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        }
+        return convertToPageResponseDTO(products.map(this::convertToDTO));
     }
 
     @Override
@@ -100,31 +100,36 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductPageResponseDTO getProductsByCategorySlug(String slug, int page, int size, 
                                                            Double minPrice, Double maxPrice, 
-                                                           Double minRating, String subcategory) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Product> products = productRepository.findByCategorySlug(slug, Product.ProductStatus.ACTIVE, pageable);
-        Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
+                                                           Double minRating, String subcategory,
+                                                           String sortBy, String direction) {
+        Sort sort = Sort.by("ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC, sortBy);
+        Pageable pageable = PageRequest.of(page, size, sort);
         
-        // Apply filtering logic
-        List<ProductResponseDTO> filtered = productPage.getContent().stream()
-            .filter(p -> {
-                if (minPrice != null && (p.price == null || p.price < minPrice)) return false;
-                if (maxPrice != null && (p.price == null || p.price > maxPrice)) return false;
-                if (minRating != null && (p.rating == null || p.rating < minRating)) return false;
-                if (subcategory != null && !subcategory.isEmpty()) {
-                    return p.categoryName != null && p.categoryName.toLowerCase().contains(subcategory.toLowerCase());
-                }
-                return true;
-            })
-            .collect(Collectors.toList());
+        BigDecimal min = minPrice != null ? BigDecimal.valueOf(minPrice) : null;
+        BigDecimal max = maxPrice != null ? BigDecimal.valueOf(maxPrice) : null;
+        BigDecimal rating = minRating != null ? BigDecimal.valueOf(minRating) : null;
 
-        return new ProductPageResponseDTO(
-            filtered,
-            filtered.size(),
-            (int) Math.ceil((double) filtered.size() / size),
-            size,
-            page
+        Page<Product> products = productRepository.findByCategorySlugWithFilters(
+            slug, Product.ProductStatus.ACTIVE, min, max, rating, pageable
         );
+        
+        // Final subcategory text filter if needed (rarely used, most filtering is via slug)
+        if (subcategory != null && !subcategory.isEmpty()) {
+            List<ProductResponseDTO> filtered = products.getContent().stream()
+                .map(this::convertToDTO)
+                .filter(p -> p.categoryName != null && p.categoryName.toLowerCase().contains(subcategory.toLowerCase()))
+                .collect(Collectors.toList());
+            
+            return new ProductPageResponseDTO(
+                filtered,
+                (int) products.getTotalElements(),
+                products.getTotalPages(),
+                size,
+                page
+            );
+        }
+
+        return convertToPageResponseDTO(products.map(this::convertToDTO));
     }
 
     @Override
@@ -136,102 +141,8 @@ public class ProductServiceImpl implements ProductService {
     )
     public ProductPageResponseDTO getFeaturedProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Product> products = null;
-        
-        // Try multiple query methods to find featured products
-        // Method 1: Try method name query
-        try {
-            products = productRepository.findByStatusAndIsFeatured(Product.ProductStatus.ACTIVE, Boolean.TRUE, pageable);
-            log.info("Method name query returned {} featured products", products.getTotalElements());
-            if (products.getTotalElements() > 0) {
-                Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        } catch (Exception e) {
-            log.warn("Method name query failed: {}", e.getMessage());
-        }
-        
-        // Method 2: Try JPQL with IS TRUE
-        try {
-            products = productRepository.findFeaturedProducts(Product.ProductStatus.ACTIVE, pageable);
-            log.info("JPQL IS TRUE query returned {} featured products", products.getTotalElements());
-            if (products.getTotalElements() > 0) {
-                Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        } catch (Exception e) {
-            log.warn("JPQL IS TRUE query failed: {}", e.getMessage());
-        }
-        
-        // Method 3: Try JPQL with parameter
-        try {
-            products = productRepository.findFeaturedProductsByParam(Product.ProductStatus.ACTIVE, Boolean.TRUE, pageable);
-            log.info("JPQL parameter query returned {} featured products", products.getTotalElements());
-            if (products.getTotalElements() > 0) {
-                Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        } catch (Exception e) {
-            log.warn("JPQL parameter query failed: {}", e.getMessage());
-        }
-        
-        // Method 4: Fallback - fetch all active products with images and filter in memory
-        // This is less efficient but will work if Boolean mapping is the issue
-        log.warn("All queries returned empty. Trying fallback: fetch all active with images and filter in memory...");
-        try {
-            // Use query that fetches images
-            List<Product> allActiveProducts = productRepository.findByStatusWithImages(Product.ProductStatus.ACTIVE);
-            
-            log.info("Found {} active products total. Checking isFeatured values...", allActiveProducts.size());
-            
-            // Filter featured products in memory
-            List<Product> featuredList = allActiveProducts.stream()
-                .filter(p -> {
-                    Boolean featured = p.getIsFeatured();
-                    boolean isFeatured = featured != null && featured;
-                    if (isFeatured) {
-                        log.debug("Found featured product: {} - isFeatured={}", p.getId(), featured);
-                    }
-                    return isFeatured;
-                })
-                .sorted((p1, p2) -> {
-                    // Sort by createdAt descending
-                    if (p1.getCreatedAt() == null && p2.getCreatedAt() == null) return 0;
-                    if (p1.getCreatedAt() == null) return 1;
-                    if (p2.getCreatedAt() == null) return -1;
-                    return p2.getCreatedAt().compareTo(p1.getCreatedAt());
-                })
-                .collect(Collectors.toList());
-            
-            log.info("Filtered {} featured products from {} active products", featuredList.size(), allActiveProducts.size());
-            
-            if (!featuredList.isEmpty()) {
-                // Apply pagination manually
-                int start = page * size;
-                int end = Math.min(start + size, featuredList.size());
-                List<Product> paginatedList = start < featuredList.size() 
-                    ? featuredList.subList(start, end)
-                    : new ArrayList<>();
-                
-                // Create a custom page
-                Page<Product> featuredPage = new PageImpl<>(
-                    paginatedList,
-                    pageable,
-                    featuredList.size()
-                );
-                
-                Page<ProductResponseDTO> productPage = featuredPage.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        } catch (Exception e) {
-            log.error("Fallback method also failed", e);
-        }
-        
-        // If all methods fail, return empty
-        log.warn("All methods failed to find featured products");
-        products = Page.empty(pageable);
-        Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
-        return convertToPageResponseDTO(productPage);
+        Page<Product> products = productRepository.findFeaturedProducts(Product.ProductStatus.ACTIVE, pageable);
+        return convertToPageResponseDTO(products.map(this::convertToDTO));
     }
 
     @Override
@@ -243,77 +154,8 @@ public class ProductServiceImpl implements ProductService {
     )
     public ProductPageResponseDTO getFlashSaleProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        try {
-            Page<Product> products = productRepository.findFlashSaleProducts(Product.ProductStatus.ACTIVE, pageable);
-            if (products.hasContent()) {
-                log.info("Database query returned {} flash sale products", products.getTotalElements());
-                Page<ProductResponseDTO> dtoPage = products.map(this::convertToDTO);
-                return convertToPageResponseDTO(dtoPage);
-            }
-        } catch (Exception ex) {
-            log.warn("Flash sale query failed, falling back to in-memory filtering: {}", ex.getMessage());
-        }
-
-        // Flash sale products are those with comparePrice > price (discounted)
-        // Fallback: fetch all active products with images and filter in memory
-        try {
-            List<Product> allActiveProducts = productRepository.findByStatusWithImages(Product.ProductStatus.ACTIVE);
-            
-            log.info("Found {} active products total. Checking for flash sale products (comparePrice > price)...", allActiveProducts.size());
-            
-            // Filter flash sale products: comparePrice > price means there's a discount
-            List<Product> flashSaleList = allActiveProducts.stream()
-                .filter(p -> {
-                    if (p.getComparePrice() == null || p.getPrice() == null) {
-                        return false;
-                    }
-                    // Flash sale: comparePrice > price (original price > current price)
-                    boolean isFlashSale = p.getComparePrice().compareTo(p.getPrice()) > 0;
-                    if (isFlashSale) {
-                        log.debug("Found flash sale product: {} - price={}, comparePrice={}", 
-                            p.getId(), p.getPrice(), p.getComparePrice());
-                    }
-                    return isFlashSale;
-                })
-                .sorted((p1, p2) -> {
-                    // Sort by createdAt descending
-                    if (p1.getCreatedAt() == null && p2.getCreatedAt() == null) return 0;
-                    if (p1.getCreatedAt() == null) return 1;
-                    if (p2.getCreatedAt() == null) return -1;
-                    return p2.getCreatedAt().compareTo(p1.getCreatedAt());
-                })
-                .collect(Collectors.toList());
-            
-            log.info("Filtered {} flash sale products from {} active products", flashSaleList.size(), allActiveProducts.size());
-            
-            if (!flashSaleList.isEmpty()) {
-                // Apply pagination manually
-                int start = page * size;
-                int end = Math.min(start + size, flashSaleList.size());
-                List<Product> paginatedList = start < flashSaleList.size() 
-                    ? flashSaleList.subList(start, end)
-                    : new ArrayList<>();
-                
-                // Create a custom page
-                Page<Product> flashSalePage = new PageImpl<>(
-                    paginatedList,
-                    pageable,
-                    flashSaleList.size()
-                );
-                
-                Page<ProductResponseDTO> productPage = flashSalePage.map(this::convertToDTO);
-                return convertToPageResponseDTO(productPage);
-            }
-        } catch (Exception e) {
-            log.error("Error fetching flash sale products", e);
-        }
-        
-        // If no flash sale products found, return empty
-        log.warn("No flash sale products found");
-        Page<Product> emptyPage = Page.empty(pageable);
-        Page<ProductResponseDTO> productPage = emptyPage.map(this::convertToDTO);
-        return convertToPageResponseDTO(productPage);
+        Page<Product> products = productRepository.findFlashSaleProducts(Product.ProductStatus.ACTIVE, pageable);
+        return convertToPageResponseDTO(products.map(this::convertToDTO));
     }
 
     @Override
@@ -324,6 +166,49 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> products = productRepository.findByStatus(Product.ProductStatus.ACTIVE, pageable);
         Page<ProductResponseDTO> productPage = products.map(this::convertToDTO);
         return convertToPageResponseDTO(productPage);
+    }
+
+    @Override
+    @Transactional
+    public ProductResponseDTO createProduct(String sellerId, com.shopcuathuy.dto.request.CreateProductRequestDTO request) {
+        Seller seller = sellerRepository.findById(sellerId)
+            .orElseThrow(() -> new ResourceNotFoundException("Seller not found with id: " + sellerId));
+            
+        com.shopcuathuy.entity.Category category = categoryRepository.findById(request.categoryId)
+            .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + request.categoryId));
+            
+        Product product = new Product();
+        product.setId(UUID.randomUUID().toString());
+        product.setSeller(seller);
+        product.setCategory(category);
+        product.setName(request.name);
+        product.setDescription(request.description);
+        product.setPrice(BigDecimal.valueOf(request.price));
+        if (request.comparePrice != null) product.setComparePrice(BigDecimal.valueOf(request.comparePrice));
+        product.setQuantity(request.quantity != null ? request.quantity : 0);
+        product.setSku(request.sku != null ? request.sku : "PROD-" + UUID.randomUUID().toString().substring(0, 8));
+        product.setStatus(Product.ProductStatus.ACTIVE);
+        product.setIsFeatured(false);
+        product.setRating(BigDecimal.valueOf(5.0));
+        product.setTotalReviews(0);
+        product.setTotalSold(0);
+        product.setTotalViews(0);
+        
+        product = productRepository.save(product);
+        
+        // Handle images if provided
+        if (request.images != null && !request.images.isEmpty()) {
+            for (String imageUrl : request.images) {
+                ProductImage img = new ProductImage();
+                img.setId(UUID.randomUUID().toString());
+                img.setProduct(product);
+                img.setImageUrl(imageUrl);
+                productImageRepository.save(img);
+                product.getImages().add(img);
+            }
+        }
+        
+        return convertToDTO(product);
     }
 
     /**
@@ -341,9 +226,17 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public ProductResponseDTO updateProduct(String id, UpdateProductRequestDTO request) {
+    public ProductResponseDTO updateProduct(String id, UpdateProductRequestDTO request, String userId) {
         Product existing = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+            
+        // Security check: must be owner
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElseThrow(() -> new com.shopcuathuy.exception.ForbiddenException("User is not a seller"));
+        
+        if (!existing.getSeller().getId().equals(seller.getId())) {
+            throw new com.shopcuathuy.exception.ForbiddenException("You do not have permission to update this product");
+        }
         
         if (request.name != null) existing.setName(request.name);
         if (request.description != null) existing.setDescription(request.description);
@@ -363,11 +256,19 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void deleteProduct(String id) {
-        if (!productRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Product not found with id: " + id);
+    public void deleteProduct(String id, String userId) {
+        Product existing = productRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+            
+        // Security check
+        Seller seller = sellerRepository.findByUserId(userId)
+            .orElseThrow(() -> new com.shopcuathuy.exception.ForbiddenException("User is not a seller"));
+            
+        if (!existing.getSeller().getId().equals(seller.getId())) {
+            throw new com.shopcuathuy.exception.ForbiddenException("You do not have permission to delete this product");
         }
-        productRepository.deleteById(id);
+        
+        productRepository.delete(existing);
     }
 
     // Make this method public so it can be used by other controllers
@@ -425,6 +326,11 @@ public class ProductServiceImpl implements ProductService {
         // Convert variants to Map format for frontend
         dto.variants = convertVariantsToMap(product.getVariants());
         
+        dto.productVariantDtos = product.getVariants() != null ?
+            product.getVariants().stream()
+                .map(this::convertVariantToDTO)
+                .collect(Collectors.toList()) : null;
+        
         dto.createdAt = product.getCreatedAt() != null ? 
             product.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant() : null;
         
@@ -455,7 +361,7 @@ public class ProductServiceImpl implements ProductService {
         // If it's a MinIO URL, extract object path and convert to proxy URL
         if (imageUrl.contains("localhost:9000") || imageUrl.contains("minio")) {
             try {
-                java.net.URL url = new java.net.URL(imageUrl);
+                java.net.URL url = java.net.URI.create(imageUrl).toURL();
                 String path = url.getPath();
                 // Remove leading slash and bucket name
                 // Example: /shopcuathuy/images/xxx.webp -> images/xxx.webp
@@ -567,6 +473,18 @@ public class ProductServiceImpl implements ProductService {
         }
 
         return result.isEmpty() ? null : result;
+    }
+
+    private com.shopcuathuy.dto.response.ProductVariantResponseDTO convertVariantToDTO(com.shopcuathuy.entity.ProductVariant variant) {
+        com.shopcuathuy.dto.response.ProductVariantResponseDTO dto = new com.shopcuathuy.dto.response.ProductVariantResponseDTO();
+        dto.id = variant.getId();
+        dto.variantName = variant.getVariantName();
+        dto.variantSku = variant.getVariantSku();
+        dto.variantPrice = variant.getVariantPrice() != null ? variant.getVariantPrice().doubleValue() : null;
+        dto.variantQuantity = variant.getVariantQuantity();
+        dto.variantImage = convertImageUrlToProxy(variant.getVariantImage());
+        dto.attributes = variant.getAttributes();
+        return dto;
     }
 
     @Override

@@ -36,5 +36,13 @@ public class ShippingPartner extends BaseEntity {
     
     @Column(name = "contact_phone", length = 20)
     private String contactPhone;
+
+    @Column(name = "partner_type")
+    @Enumerated(EnumType.STRING)
+    private PartnerType partnerType = PartnerType.IN_HOUSE;
+
+    public enum PartnerType {
+        IN_HOUSE, GHN, GHTK, VIETTEL_POST, STANDARD
+    }
 }
 
